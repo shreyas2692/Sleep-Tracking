@@ -1,0 +1,17 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.db
+.env
+.venv/
+node_modules/
+.git/
+.github/
+.claude/
+tests/
+.DS_Store
+AGENTS.md
+README.md
+requirements-dev.txt
+Dockerfile
+.dockerignore

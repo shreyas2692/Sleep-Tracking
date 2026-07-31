@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sleep Tracker — App Store mockups</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #141413;
+      color: #f5f4ef;
+      padding: 40px 24px 80px;
+    }
+    h1 {
+      font-family: "Iowan Old Style", Palatino, serif;
+      font-weight: 500;
+      font-size: 36px;
+      margin: 0 0 8px;
+    }
+    .sub {
+      color: #a8a69e;
+      max-width: 640px;
+      line-height: 1.5;
+      margin-bottom: 32px;
+    }
+    .sub a { color: #d97757; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    a.card {
+      display: block;
+      background: #262624;
+      border: 1px solid #3e3e3a;
+      border-radius: 16px;
+      padding: 20px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color .15s;
+    }
+    a.card:hover { border-color: #d97757; }
+    a.card .n {
+      color: #d97757;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    a.card h2 {
+      font-family: "Iowan Old Style", Palatino, serif;
+      font-weight: 500;
+      font-size: 22px;
+      margin: 8px 0 6px;
+    }
+    a.card p { color: #a8a69e; font-size: 14px; line-height: 1.4; margin: 0; }
+    .note {
+      margin-top: 40px;
+      padding: 16px 18px;
+      background: #262624;
+      border-radius: 12px;
+      border-left: 3px solid #d97757;
+      color: #a8a69e;
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 720px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sleep Tracker · Store mockups</h1>
+  <p class="sub">
+    Phone frames for App Store Connect and review decks. Design tokens match
+    <code>ios/Sources/Theme/Theme.swift</code>. Plan:
+    <a href="../APP_STORE_PLAN.md">APP_STORE_PLAN.md</a>.
+    Live SwiftUI capture for Today already exists at
+    <code>ios/screenshots/dashboard-light.png</code>.
+  </p>
+  <div class="grid">
+    <a class="card" href="01-today.html">
+      <div class="n">Shot 01</div>
+      <h2>Today</h2>
+      <p>Greeting, stats, sleep debt, 30-day stage bars — hero screenshot.</p>
+    </a>
+    <a class="card" href="02-trends.html">
+      <div class="n">Shot 02</div>
+      <h2>Trends</h2>
+      <p>30d / 90d / 1y / All — multi-year story, never paywalled.</p>
+    </a>
+    <a class="card" href="03-nights.html">
+      <div class="n">Shot 03</div>
+      <h2>Nights</h2>
+      <p>List with provenance and stage pills.</p>
+    </a>
+    <a class="card" href="04-night-detail.html">
+      <div class="n">Shot 04</div>
+      <h2>Night detail</h2>
+      <p>Deep / REM / light / awake + transparent quality math.</p>
+    </a>
+    <a class="card" href="05-settings.html">
+      <div class="n">Shot 05</div>
+      <h2>Settings</h2>
+      <p>HealthKit default · optional self-hosted server for Review honesty.</p>
+    </a>
+  </div>
+  <div class="note">
+    <strong style="color:#f5f4ef">How to export for ASC:</strong>
+    open a shot in Chrome → DevTools device mode (iPhone 14 Pro Max) → capture,
+    or screenshot the phone frame. Target ~1290×2796. Prefer the real simulator
+    capture for shot 01 when the iOS agent’s build is ready.
+  </div>
+</body>
+</html>

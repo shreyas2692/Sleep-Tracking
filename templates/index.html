@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sleep Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z' fill='none' stroke='%23D97757' stroke-width='2'/%3E%3C/svg%3E">
+  <script>
+    /* Theme boot: apply persisted choice before first paint to avoid a flash. */
+    (function () {
+      try {
+        var t = localStorage.getItem("sleep-theme");
+        if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
+      } catch (e) { /* storage unavailable; fall back to prefers-color-scheme */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-title">
+      <svg class="logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z"
+              fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      <h1>Sleep Tracker</h1>
+    </div>
+    <div class="header-actions">
+      <form id="import-form" method="post" action="/import" enctype="multipart/form-data">
+        <input class="visually-hidden" type="file" name="file" id="import-file"
+               accept=".csv,text/csv" tabindex="-1" aria-hidden="true"
+               aria-label="CSV file to import">
+        <button id="import-btn" class="btn btn-ghost" type="button">Import CSV</button>
+      </form>
+      <a class="btn btn-ghost" href="/export.csv">Export CSV</a>
+      <button id="theme-toggle" class="btn btn-ghost btn-icon" type="button"
+              aria-label="Switch color theme">
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z"
+                fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M18.7 5.3 17 7M7 17l-1.7 1.7"/>
+          </g>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flashes">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <section class="stats" aria-label="Summary statistics">
+      <div class="stat-card">
+        <span class="stat-label">Total nights</span>
+        <span class="stat-value" id="stat-total">–</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Avg hours</span>
+        <span class="stat-value" id="stat-avg-hours">–</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Avg quality</span>
+        <span class="stat-value" id="stat-avg-quality">–</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Current streak</span>
+        <span class="stat-value" id="stat-streak">–</span>
+        <span class="stat-sub" id="stat-best-streak"></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label" id="debt-label">Sleep debt</span>
+        <span class="stat-value" id="stat-debt">–</span>
+        <span class="stat-sub" id="debt-sub"></span>
+        <div class="debt-spark" id="debt-spark" aria-hidden="true"></div>
+        <form class="goal-form" action="/settings/update" method="post">
+          <label for="sleep-goal">Need</label>
+          <input id="sleep-goal" name="sleep_goal" type="number"
+                 min="0.25" max="24" step="0.25"
+                 value="{{ stats.sleep_debt.need }}" required>
+          <span aria-hidden="true">h</span>
+          <button class="goal-save" type="submit">Save</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card import-card" id="wearable-card">
+      <div class="card-head">
+        <h2>Import your history</h2>
+        <p class="card-sub">Years of nights in one upload &middot; nothing leaves your machine</p>
+      </div>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button"
+           aria-label="Import wearable data: drop a file here or press Enter to browse">
+        <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 15V4m0 0 4 4m-4-4L8 8M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"
+                fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="drop-title">Drop your Apple Health export.zip or Fitbit Takeout file</p>
+        <p class="drop-hint">or <span class="drop-browse">browse for a file</span></p>
+      </div>
+      <input type="file" id="wearable-file" class="visually-hidden" tabindex="-1"
+             accept=".zip,.xml,.json,application/zip,text/xml,application/json"
+             aria-hidden="true">
+      <p class="drop-help">On iPhone: Health app &rarr; tap your profile picture &rarr; Export All Health Data.</p>
+      <div class="upload-progress" id="upload-progress" hidden>
+        <div class="progress-track" role="progressbar" id="progress-bar"
+             aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <span class="progress-text" id="progress-text"></span>
+      </div>
+      <p class="msg" id="import-msg" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card chart-card">
+      <div class="card-head chart-head">
+        <div class="chart-titles">
+          <h2 id="chart-title">Sleep trends</h2>
+          <p class="card-sub" id="chart-sub">Hours per night &middot; reference line at 8h</p>
+        </div>
+        <div class="range-picker" role="group" aria-label="Chart date range">
+          <button type="button" class="range-btn" data-range="30d" aria-pressed="true">30d</button>
+          <button type="button" class="range-btn" data-range="90d" aria-pressed="false">90d</button>
+          <button type="button" class="range-btn" data-range="1y" aria-pressed="false">1y</button>
+          <button type="button" class="range-btn" data-range="all" aria-pressed="false">All</button>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chart-wrap">
+        <div id="chart" aria-label="Chart of hours slept per night"></div>
+        <div class="chart-tip" id="chart-tip" hidden>
+          <div class="tip-val" id="tip-val"></div>
+          <div class="tip-date" id="tip-date"></div>
+          <div class="tip-qual" id="tip-qual"></div>
+          <div class="tip-stages" id="tip-stages"></div>
+        </div>
+      </div>
+      <div class="stage-legend" id="stage-legend" hidden>
+        <span class="legend-item"><span class="legend-swatch swatch-deep"></span>Deep</span>
+        <span class="legend-item"><span class="legend-swatch swatch-rem"></span>REM</span>
+        <span class="legend-item"><span class="legend-swatch swatch-light"></span>Light</span>
+        <span class="legend-item"><span class="legend-swatch swatch-awake"></span>Awake</span>
+      </div>
+      <span class="visually-hidden" id="chart-live" aria-live="polite"></span>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Log sleep</h2>
+      </div>
+      <form id="sleep-form" method="post" action="/add" novalidate>
+        <div class="form-grid">
+          <label class="field">
+            <span class="field-label">Date</span>
+            <input type="date" name="date" id="f-date" value="{{ today }}"
+                   max="{{ today }}" required>
+          </label>
+          <label class="field">
+            <span class="field-label">Bedtime</span>
+            <input type="time" name="bedtime" id="f-bedtime" value="23:00" required>
+          </label>
+          <label class="field">
+            <span class="field-label">Wake</span>
+            <input type="time" name="wake" id="f-wake" value="07:00" required>
+          </label>
+          <label class="field field-quality">
+            <span class="field-label">Quality <output id="q-val" for="f-quality">3</output>/5</span>
+            <input type="range" name="quality" id="f-quality" min="1" max="5" step="1" value="3">
+          </label>
+          <label class="field field-notes">
+            <span class="field-label">Notes</span>
+            <input type="text" name="notes" id="f-notes" maxlength="500"
+                   placeholder="Optional&hellip;" autocomplete="off">
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="save-btn">Save night</button>
+          <span id="form-msg" class="msg" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Records</h2>
+        <span id="table-msg" class="msg" role="status" aria-live="polite"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="records-table">
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Bed</th>
+              <th scope="col">Wake</th>
+              <th scope="col" class="num">Hours</th>
+              <th scope="col">Quality</th>
+              <th scope="col">Notes</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="records-body"></tbody>
+        </table>
+      </div>
+      <p id="empty-msg" class="empty-msg" hidden>
+        No nights logged yet. Start by importing years of your history from the card
+        above &mdash; or log tonight by hand and build from there.
+      </p>
+      <div class="records-footer">
+        <button id="load-more" class="btn" type="button" hidden>Load more</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    window.__INITIAL_RECORDS__ = {{ records | tojson }};
+    window.__INITIAL_STATS__ = {{ stats | tojson }};
+    window.__TODAY__ = {{ today | tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

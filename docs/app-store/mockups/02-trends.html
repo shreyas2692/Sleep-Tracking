@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mockup — Trends</title>
+  <link rel="stylesheet" href="mockup.css" />
+</head>
+<body>
+  <p class="meta"><strong>Screenshot 2 · Trends</strong><br />Differentiator: multi-year ranges, never paywalled</p>
+  <div class="phone">
+    <div class="status">
+      <span>9:41</span>
+      <div class="island"></div>
+      <span class="right">●●●● &nbsp;↑ &nbsp;🔋</span>
+    </div>
+    <div class="content" style="padding-top:8px">
+      <div class="large-title" style="font-size:34px;margin-bottom:4px">Trends</div>
+      <div class="segmented">
+        <span>30d</span>
+        <span>90d</span>
+        <span class="on">1y</span>
+        <span>All</span>
+      </div>
+      <div class="summary-row">
+        <div class="card">
+          <div class="micro">Nights</div>
+          <div class="stat-val">312</div>
+        </div>
+        <div class="card">
+          <div class="micro">Avg hours</div>
+          <div class="stat-val">7.4</div>
+        </div>
+        <div class="card">
+          <div class="micro">Avg quality</div>
+          <div class="stat-val">3.8</div>
+        </div>
+      </div>
+      <div class="card chart-card">
+        <div class="micro">Hours · last year</div>
+        <div class="chart-area" style="height:200px">
+          <span class="y-label t">10h</span>
+          <span class="y-label m">7h</span>
+          <span class="y-label b">4h</span>
+          <div class="bars" style="height:160px;padding-left:18px;gap:2px" id="yearbars"></div>
+          <div class="axis" style="padding-left:18px">
+            <span>Aug</span><span>Nov</span><span>Feb</span><span>May</span><span>Jul</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="micro">Season snapshot</div>
+        <div class="debt-title" style="font-size:18px">Winter nights ran longer</div>
+        <div class="debt-note" style="max-width:none">Dec–Feb avg 7.9h · Jun–Jul avg 7.1h · your full history stays free to explore</div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M4 12h2M18 12h2M12 4v2M12 18v2"/></svg>
+        Today
+      </div>
+      <div class="tab active">
+        <svg viewBox="0 0 24 24"><path d="M4 18V6M4 18h16M7 14l3-4 3 2 4-6"/></svg>
+        Trends
+      </div>
+      <div class="tab">
+        <svg viewBox="0 0 24 24"><path d="M12 4c-4 4-6 7-6 10a6 6 0 0012 0c0-3-2-6-6-10z"/></svg>
+        Nights
+      </div>
+      <div class="tab">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+        Settings
+      </div>
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+  <script>
+    const el = document.getElementById('yearbars');
+    // Deterministic faux year of sleep hours
+    for (let i = 0; i < 52; i++) {
+      const h = 6.2 + Math.sin(i / 4) * 0.9 + ((i * 17) % 5) * 0.15;
+      const pct = ((h - 4) / 6) * 100;
+      const d = document.createElement('div');
+      d.className = 'bar';
+      d.style.height = Math.max(18, Math.min(100, pct)) + '%';
+      d.style.opacity = 0.55 + (i % 7) * 0.05;
+      el.appendChild(d);
+    }
+  </script>
+</body>
+</html>

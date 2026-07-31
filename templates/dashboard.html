@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Sleep Tracker{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats row -->
+<section class="stats-row">
+  <div class="stat-card accent">
+    <div class="stat-icon">🔥</div>
+    <div class="stat-info">
+      <span class="stat-value" id="streak-value">{{ streak }}</span>
+      <span class="stat-label">Night Streak</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">😴</div>
+    <div class="stat-info">
+      <span class="stat-value" id="stat-hours">{{ stats.avg_hours }}h</span>
+      <span class="stat-label">Avg Sleep</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">⭐</div>
+    <div class="stat-info">
+      <span class="stat-value" id="stat-quality">{{ stats.avg_quality }}/5</span>
+      <span class="stat-label">Avg Quality</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">📅</div>
+    <div class="stat-info">
+      <span class="stat-value" id="stat-total">{{ stats.total }}</span>
+      <span class="stat-label">Total Nights</span>
+    </div>
+  </div>
+</section>
+
+<!-- Goal tracker -->
+{% if stats.total > 0 %}
+<div class="goal-tracker">
+  <div class="goal-header">
+    <span>Sleep Goal: <strong>{{ settings.sleep_goal }}h</strong></span>
+    <span id="goal-status"></span>
+  </div>
+  <div class="goal-bar">
+    <div class="goal-fill" id="goal-fill" style="width: {{ (stats.avg_hours / settings.sleep_goal * 100) | min(100) }}%"></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Today's status -->
+{% if today_record %}
+<div class="today-card">
+  <h2>Today's Sleep</h2>
+  <div class="today-details">
+    <div class="today-item">
+      <span class="today-label">Bedtime</span>
+      <span class="today-value">{{ today_record[2] }}</span>
+    </div>
+    <div class="today-item">
+      <span class="today-label">Wake</span>
+      <span class="today-value">{{ today_record[3] }}</span>
+    </div>
+    <div class="today-item">
+      <span class="today-label">Duration</span>
+      <span class="today-value">{{ today_hours }}h</span>
+    </div>
+    <div class="today-item">
+      <span class="today-label">Quality</span>
+      <span class="today-value">{{ '★' * today_record[4] }}{{ '☆' * (5 - today_record[4]) }}</span>
+    </div>
+    {% if today_record[5] %}
+    <div class="today-item">
+      <span class="today-label">Notes</span>
+      <span class="today-value">{{ today_record[5] }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="today-card empty">
+  <p>No sleep logged today. Log it below!</p>
+</div>
+{% endif %}
+
+<!-- Log form -->
+<section class="card">
+  <h2>Log Sleep</h2>
+  <form id="sleep-form">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="date">Date</label>
+        <input type="date" id="date" name="date" value="{{ today }}" required>
+      </div>
+      <div class="form-group">
+        <label for="bedtime">Bedtime</label>
+        <input type="time" id="bedtime" name="bedtime" value="{{ settings.bedtime_goal }}" required>
+      </div>
+      <div class="form-group">
+        <label for="wake">Wake Time</label>
+        <input type="time" id="wake" name="wake" value="07:00" required>
+      </div>
+      <div class="form-group">
+        <label>Quality <span id="q-val">3</span></label>
+        <input type="range" id="quality" name="quality" min="1" max="5" value="3"
+               oninput="document.getElementById('q-val').textContent=this.value">
+      </div>
+    </div>
+    <div class="form-group full">
+      <label for="notes">Notes</label>
+      <input type="text" id="notes" name="notes" placeholder="Coffee late, great dream, stressful day…">
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn-primary" id="save-btn">Save Record</button>
+      <span id="form-msg" class="form-msg"></span>
+    </div>
+  </form>
+</section>
+
+<!-- Recent records -->
+<section class="card">
+  <div class="card-header">
+    <h2>Recent Nights</h2>
+    <a href="/history" class="link-btn">View All →</a>
+  </div>
+  <div class="records-list" id="records-list">
+    {% for r in recent %}
+    <div class="record-row" data-id="{{ r[0] }}">
+      <div class="record-date">
+        <span class="record-day">{{ r[1] }}</span>
+        {% set d = r[1] | replace('-', '') %}
+        <span class="record-dow">{{ ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][(int(d[8:10]) - 1 + 5) % 7] }}</span>
+      </div>
+      <div class="record-times">
+        <span>{{ r[2] }}</span>
+        <span class="arrow">→</span>
+        <span>{{ r[3] }}</span>
+      </div>
+      <div class="record-hours" id="hours-{{ r[0] }}"></div>
+      <div class="record-quality">{{ '★' * r[4] }}{{ '☆' * (5 - r[4]) }}</div>
+      <div class="record-notes">{{ r[5] or '' }}</div>
+      <button class="btn-del" data-id="{{ r[0] }}" title="Delete">🗑</button>
+    </div>
+    {% endfor %}
+    {% if not recent %}
+    <p class="empty-state">No records yet. Log your first night above! 🌙</p>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Precompute hours for initial render -->
+<script>
+  window.__INITIAL_RECORDS__ = {{ recent | tojson }};
+  window.__INITIAL_STATS__  = {{ stats | tojson }};
+  window.__STREAK__ = {{ streak }};
+  window.__GOAL__ = {{ settings.sleep_goal }};
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+{% endblock %}

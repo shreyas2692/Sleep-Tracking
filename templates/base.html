@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Sleep Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-icon">😴</span>
+      <span class="brand-text">Sleep Tracker</span>
+      <button class="sidebar-close" id="sidebar-close" title="Close menu">✕</button>
+    </div>
+    <ul class="nav">
+      <li><a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+        <span class="nav-icon">📊</span> Dashboard
+      </a></li>
+      <li><a href="/history" class="nav-link {% if request.path == '/history' %}active{% endif %}">
+        <span class="nav-icon">📋</span> History
+      </a></li>
+      <li><a href="/insights" class="nav-link {% if request.path == '/insights' %}active{% endif %}">
+        <span class="nav-icon">🔬</span> Insights
+      </a></li>
+      <li><a href="/settings" class="nav-link {% if request.path == '/settings' %}active{% endif %}">
+        <span class="nav-icon">⚙️</span> Settings
+      </a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <button id="theme-toggle" title="Toggle theme" class="theme-btn">
+        <span class="theme-icon">🌙</span> <span class="theme-label">Dark</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Overlay for mobile -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- Main content -->
+  <main class="content">
+    <header class="topbar">
+      <button class="menu-btn" id="menu-btn" title="Open menu">☰</button>
+      <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+      <div class="topbar-spacer"></div>
+      <span class="topbar-date">{{ today | default('', true) }}</span>
+    </header>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flashes">
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

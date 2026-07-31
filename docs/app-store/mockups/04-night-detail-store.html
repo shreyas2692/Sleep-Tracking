@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Night detail store</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 430px; height: 932px; overflow: hidden; background: #faf9f5; color: #141413;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+  .status { height: 54px; display:flex; align-items:flex-end; justify-content:space-between;
+    padding: 0 28px 8px; font-size:15px; font-weight:600; position:relative; }
+  .island { position:absolute; left:50%; top:11px; transform:translateX(-50%); width:126px; height:36px;
+    background:#000; border-radius:20px; }
+  .content { padding: 8px 20px 100px; }
+  .back { color:#d97757; font-size:17px; font-weight:500; margin-bottom:12px; }
+  .title { font-family: "Iowan Old Style", Palatino, serif; font-size:28px; font-weight:500; text-align:center; }
+  .hours { font-family: "Iowan Old Style", Palatino, serif; font-size:52px; font-weight:500; text-align:center; margin-top:12px; }
+  .sub { text-align:center; color:#5e5d59; font-size:15px; margin:6px 0 20px; }
+  .card { background:#fff; border:1px solid #e8e6dc; border-radius:16px; padding:16px; margin-bottom:12px; }
+  .micro { font-size:11px; font-weight:600; letter-spacing:1.1px; text-transform:uppercase; color:#5e5d59; }
+  .stack { display:flex; height:18px; border-radius:9px; overflow:hidden; margin:14px 0 12px; }
+  .line { display:grid; grid-template-columns: 70px 1fr 56px; gap:10px; align-items:center; margin:10px 0; font-size:15px; }
+  .track { height:10px; background:#f0eee6; border-radius:5px; overflow:hidden; }
+  .fill { height:100%; border-radius:5px; }
+  .mins { text-align:right; color:#5e5d59; font-variant-numeric: tabular-nums; }
+  .why { font-family: "Iowan Old Style", Palatino, serif; font-size:20px; font-weight:500; margin-top:8px; }
+  .note { font-size:14px; color:#5e5d59; margin-top:6px; line-height:1.4; }
+  .tabbar { position:fixed; bottom:0; left:0; right:0; height:84px; border-top:1px solid #e8e6dc;
+    background:rgba(250,249,245,.94); display:flex; justify-content:space-around; padding:10px 8px 28px;
+    font-size:10px; color:#706e67; }
+  .tab { display:flex; flex-direction:column; align-items:center; gap:4px; width:70px; }
+  .tab.on { color:#d97757; font-weight:600; }
+  .home { position:fixed; bottom:8px; left:50%; transform:translateX(-50%); width:134px; height:5px;
+    background:#141413; border-radius:3px; }
+</style>
+</head>
+<body>
+  <div class="status"><span>9:41</span><div class="island"></div><span>■■■↑ 🔋</span></div>
+  <div class="content">
+    <div class="back">‹ Nights</div>
+    <div class="title">Thursday, Jul 31</div>
+    <div class="hours">7.9h</div>
+    <div class="sub">23:12 → 07:04 · quality 4 / 5</div>
+    <div class="card">
+      <div class="micro">Stage composition</div>
+      <div class="stack">
+        <div style="width:22%;background:#8a3a20"></div>
+        <div style="width:24%;background:#c4633f"></div>
+        <div style="width:42%;background:#de855e"></div>
+        <div style="width:12%;background:#eda787"></div>
+      </div>
+      <div class="line"><span>Deep</span><div class="track"><div class="fill" style="width:88%;background:#8a3a20"></div></div><span class="mins">1h 42m</span></div>
+      <div class="line"><span>REM</span><div class="track"><div class="fill" style="width:96%;background:#c4633f"></div></div><span class="mins">1h 54m</span></div>
+      <div class="line"><span>Light</span><div class="track"><div class="fill" style="width:100%;background:#de855e"></div></div><span class="mins">3h 18m</span></div>
+      <div class="line"><span>Awake</span><div class="track"><div class="fill" style="width:48%;background:#eda787"></div></div><span class="mins">48m</span></div>
+    </div>
+    <div class="card">
+      <div class="micro">Why quality 4</div>
+      <div class="why">(Deep + REM) / stages = 46%</div>
+      <div class="note">Thresholds: ≥35% → 5, ≥28% → 4. Arithmetic is open — edit anytime.</div>
+    </div>
+    <div class="card">
+      <div class="micro">Source</div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;align-items:center">
+        <div><div style="font-weight:600">Apple Health</div><div class="note">Watch · Sleep Analysis</div></div>
+        <div style="color:#d97757;font-weight:600">Edit</div>
+      </div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="tab">☀ Today</div>
+    <div class="tab">📈 Trends</div>
+    <div class="tab on">☾ Nights</div>
+    <div class="tab">⚙ Settings</div>
+  </div>
+  <div class="home"></div>
+</body>
+</html>
