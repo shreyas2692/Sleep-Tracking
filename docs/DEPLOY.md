@@ -1,7 +1,24 @@
 # Deploy status
 
+**Last public deploy:** 2026-07-31 (Render free tier)  
 **Last local deploy:** 2026-07-31  
-**Tests before ship:** 235 passed  
+**GitHub:** https://github.com/shreyas2692/Sleep-Tracking  
+
+## Live on Render (public)
+
+| | |
+|--|--|
+| **URL** | https://sleep-tracker-n4cs.onrender.com |
+| **Dashboard** | https://dashboard.render.com/web/srv-d9m6iqfqj5pc73a7hsu0 |
+| **Health** | `GET /healthz` → `{"ok":true}` (public) |
+| **Auth** | HTTP Basic — username `sleep` |
+| **Password** | stored only in Render env + `/tmp/sleep-tracker-render.env` (not in git) |
+| **Plan** | free (SQLite on ephemeral disk — data can reset on redeploy/sleep) |
+| **Region** | oregon |
+| **Repo / branch** | `shreyas2692/Sleep-Tracking` @ `main` (auto-deploy on commit) |
+
+> Free tier spins down after idle; first request may take ~30–60s.  
+> For durable SQLite, upgrade to **starter** + attach a disk at `/data` (card required).
 
 ## Running now (Docker on this machine)
 

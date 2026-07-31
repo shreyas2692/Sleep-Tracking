@@ -64,9 +64,13 @@ struct RootTabView: View {
         return Tab(rawValue: UserDefaults.standard.string(forKey: "initialTab") ?? "") ?? .today
     }()
 
+    @State private var showSetup = false
+
     private var usePreviewFixtures: Bool {
         ProcessInfo.processInfo.arguments.contains("-previewFixtures")
     }
+
+    private static let setupShownKey = "sleeptracker.setup.completed"
 
     var body: some View {
         TabView(selection: $selection) {
@@ -83,11 +87,30 @@ struct RootTabView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(Tab.settings)
         }
+        .sheet(isPresented: $showSetup) {
+            SetupView()
+                .environmentObject(store)
+                .presentationDetents([.large])
+        }
         .task {
             #if DEBUG
             if usePreviewFixtures { return }
             #endif
             await store.refresh()
+            // First launch, missing password, or hard connection failure → setup sheet.
+            let needsSetup = !UserDefaults.standard.bool(forKey: Self.setupShownKey)
+                || !store.config.hasCredentials
+                || store.loadState.errorMessage != nil
+            if needsSetup {
+                showSetup = true
+            } else {
+                UserDefaults.standard.set(true, forKey: Self.setupShownKey)
+            }
+        }
+        .onChange(of: store.config) { _, newValue in
+            if newValue.hasCredentials {
+                UserDefaults.standard.set(true, forKey: Self.setupShownKey)
+            }
         }
     }
 }

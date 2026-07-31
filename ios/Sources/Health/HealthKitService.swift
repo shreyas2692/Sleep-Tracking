@@ -63,44 +63,102 @@ final class HealthKitService: ObservableObject {
         }
     }
 
-    /// Push clustered nights to the server via POST /add, skipping dates the
-    /// server already has. Returns after updating `state`.
-    func push(to client: APIClient, existingDates: Set<String>, defaultQuality: Int = 3) async -> MutationResponse? {
+    /// Push clustered nights via `POST /api/ingest` (source `apple_health`).
+    /// Re-posts update in place by (date, source). Returns ingest summary.
+    @discardableResult
+    func push(to client: APIClient, existingDates: Set<String> = []) async -> APIClient.IngestResponse? {
         guard !nights.isEmpty else { return nil }
-        var uploaded = 0
-        var skipped = 0
-        var lastResponse: MutationResponse?
-        let todo = nights
+
+        // Prefer new nights, but allow re-sync of all if everything already exists
+        // (ingest upserts by date+source).
+        let newOnly = nights.filter { !existingDates.contains($0.date) }
+        let todo = newOnly.isEmpty ? nights : newOnly
+
         state = .pushing(done: 0, total: todo.count)
+        var batch: [APIClient.IngestNight] = []
         for night in todo {
-            if existingDates.contains(night.date) {
-                skipped += 1
-            } else {
-                let stageNote: String
-                if let stages = night.stages {
-                    stageNote = " (\(Format.minutes(stages.deep)) deep, \(Format.minutes(stages.rem)) REM)"
-                } else {
-                    stageNote = ""
-                }
-                let fields = APIClient.NightFields(
-                    date: night.date,
-                    bedtime: night.bedtime,
-                    wake: night.wake,
-                    quality: defaultQuality,
-                    notes: "Synced from Apple Health\(stageNote)"
-                )
-                do {
-                    lastResponse = try await client.add(fields)
-                    uploaded += 1
-                } catch {
-                    state = .failed("Upload stopped after \(uploaded) nights. \((error as? APIError)?.errorDescription ?? error.localizedDescription)")
-                    return lastResponse
-                }
-            }
-            state = .pushing(done: uploaded + skipped, total: todo.count)
+            batch.append(Self.ingestPayload(from: night))
         }
-        state = .pushed(uploaded: uploaded, skipped: skipped)
-        return lastResponse
+
+        // Chunk to stay under server max (100 nights / call).
+        let chunkSize = 50
+        var imported = 0
+        var replaced = 0
+        var skipped = 0
+        var last: APIClient.IngestResponse?
+        var done = 0
+        do {
+            for start in stride(from: 0, to: batch.count, by: chunkSize) {
+                let end = min(start + chunkSize, batch.count)
+                let chunk = Array(batch[start..<end])
+                let response = try await client.ingest(chunk)
+                last = response
+                imported += response.imported
+                replaced += response.replaced
+                skipped += response.skipped
+                if let errors = response.errors, !errors.isEmpty, response.imported + response.replaced == 0 {
+                    let msg = errors.prefix(2).map(\.error).joined(separator: "; ")
+                    state = .failed("Server rejected Health sync: \(msg)")
+                    return response
+                }
+                done = end
+                state = .pushing(done: done, total: batch.count)
+            }
+            // Nights we intentionally left out as "already present" (when we filtered newOnly).
+            if !newOnly.isEmpty {
+                skipped += nights.count - newOnly.count
+            }
+            state = .pushed(uploaded: imported + replaced, skipped: skipped)
+            return last
+        } catch {
+            state = .failed(
+                "Upload stopped after \(done) nights. "
+                + ((error as? APIError)?.errorDescription ?? error.localizedDescription)
+            )
+            return last
+        }
+    }
+
+    /// Map a clustered night to ingest JSON. Stages only when totals are
+    /// close to the night length (server validates that relationship).
+    static func ingestPayload(from night: ClusteredNight) -> APIClient.IngestNight {
+        let quality = deriveQuality(stages: night.stages)
+        var stages = night.stages
+        if let s = stages {
+            let nightMinutes = max(1, Int((night.durationHours * 60).rounded()))
+            if abs(s.totalMinutes - nightMinutes) > 120 {
+                stages = nil // avoid hard reject; times still upload
+            }
+        }
+        let note: String
+        if let s = stages {
+            note = "Synced from Apple Health (\(Format.minutes(s.deep)) deep, \(Format.minutes(s.rem)) REM)"
+        } else {
+            note = "Synced from Apple Health"
+        }
+        return APIClient.IngestNight(
+            date: night.date,
+            bedtime: night.bedtime,
+            wake: night.wake,
+            quality: quality,
+            notes: note,
+            source: "apple_health",
+            stages: stages,
+            efficiency: nil
+        )
+    }
+
+    /// Same thresholds as server `derive_quality` / wearable import.
+    static func deriveQuality(stages: SleepStages?) -> Int {
+        guard let stages else { return 3 }
+        let total = stages.totalMinutes
+        guard total > 0 else { return 3 }
+        let fraction = Double(stages.deep + stages.rem) / Double(total)
+        if fraction >= 0.35 { return 5 }
+        if fraction >= 0.28 { return 4 }
+        if fraction >= 0.20 { return 3 }
+        if fraction >= 0.12 { return 2 }
+        return 1
     }
 
     // MARK: - HealthKit plumbing

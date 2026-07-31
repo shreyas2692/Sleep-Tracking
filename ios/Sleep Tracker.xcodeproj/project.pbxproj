@@ -14,6 +14,7 @@
 		27C6315F50F61C5A98E8F9EB /* NightFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F34AA4DE57D970DB8E68020 /* NightFormView.swift */; };
 		39AA325B9ED3F6BB6D0B5DEE /* NightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF115DB1C562FE40F6450F4E /* NightsView.swift */; };
 		533D460AE52991B4A12A9D20 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3285AF20F99A5C535801BBDA /* SettingsView.swift */; };
+		7CF35E93AE687D598A4EAD80 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF36D033FCD8B2694FDF3F08 /* SetupView.swift */; };
 		7E31F973A96D4EAC5450BF6B /* TrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9870B395EBF631D52FB88F8 /* TrendsView.swift */; };
 		B4CAAED27E8C89EA849EE306 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A1BF1003FC3BB28BEEA1960 /* Models.swift */; };
 		B758F933A2BCD6EEF74B76AF /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 971157D027267943C454009C /* HealthKitService.swift */; };
@@ -55,6 +56,7 @@
 		9580153E9C495880EACB9DDF /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		971157D027267943C454009C /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		C9870B395EBF631D52FB88F8 /* TrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsView.swift; sourceTree = "<group>"; };
+		EF36D033FCD8B2694FDF3F08 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		FF115DB1C562FE40F6450F4E /* NightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -149,6 +151,14 @@
 			path = Store;
 			sourceTree = "<group>";
 		};
+		C5AA3E1C7DA9A0A7575DF66A /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				EF36D033FCD8B2694FDF3F08 /* SetupView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
 		CBABBD2B608F484140148F9D /* Components */ = {
 			isa = PBXGroup;
 			children = (
@@ -198,6 +208,7 @@
 				CBABBD2B608F484140148F9D /* Components */,
 				027FE76859A57DEA4647B86E /* Dashboard */,
 				8CB9074741566C41C20EC477 /* Nights */,
+				C5AA3E1C7DA9A0A7575DF66A /* Onboarding */,
 				1B2167C6658DEBFA659348F0 /* Settings */,
 				4AFBF0543AECDAF4FA0F4D81 /* Trends */,
 			);
@@ -304,6 +315,7 @@
 				39AA325B9ED3F6BB6D0B5DEE /* NightsView.swift in Sources */,
 				C0E5434608E7C4F6904D946C /* PreviewFixtures.swift in Sources */,
 				533D460AE52991B4A12A9D20 /* SettingsView.swift in Sources */,
+				7CF35E93AE687D598A4EAD80 /* SetupView.swift in Sources */,
 				F2D5158B87422407D1CB9BF1 /* SleepStore.swift in Sources */,
 				1802EDEE6EE198A80E21B0A6 /* SleepTrackerApp.swift in Sources */,
 				B8767FAB5467BA1BBBCEBF34 /* Theme.swift in Sources */,

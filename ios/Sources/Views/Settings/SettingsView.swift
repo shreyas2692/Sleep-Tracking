@@ -39,17 +39,23 @@ struct SettingsView: View {
 
     private var serverSection: some View {
         Section {
-            TextField("Server URL", text: $serverURL, prompt: Text("http://127.0.0.1:5002"))
+            TextField("Server URL", text: $serverURL, prompt: Text(ServerConfig.cloudDefaultURL))
                 .keyboardType(.URL)
                 .textContentType(.URL)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
-            TextField("Username (optional)", text: $username)
+            TextField("Username", text: $username, prompt: Text("sleep"))
                 .textContentType(.username)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
-            SecureField("Password (optional)", text: $password)
+            SecureField("Password", text: $password, prompt: Text("SLEEP_PASSWORD from deploy"))
                 .textContentType(.password)
+
+            Button("Fill cloud server (Render)") {
+                serverURL = ServerConfig.cloudDefaultURL
+                username = "sleep"
+            }
+
             Button {
                 testConnection()
             } label: {
@@ -80,7 +86,7 @@ struct SettingsView: View {
         } header: {
             Text("Your Server").microLabel()
         } footer: {
-            Text("The app talks only to your own self-hosted Sleep Tracker. Changes apply as soon as the connection test succeeds.")
+            Text("This phone is a client. Your history lives on the web server (Render or Docker). First connect after idle can take ~60s on the free tier.")
         }
         .listRowBackground(Color.appSurface)
     }
@@ -185,7 +191,11 @@ struct SettingsView: View {
         Task {
             if await health.push(to: store.client, existingDates: existing) != nil {
                 await store.refresh()
-                Haptics.success()
+                if case .failed = health.state {
+                    // push set failed state; haptic already not success
+                } else {
+                    Haptics.success()
+                }
             }
         }
     }
