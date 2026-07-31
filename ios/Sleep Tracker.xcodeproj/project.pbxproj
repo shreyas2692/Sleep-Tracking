@@ -8,8 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		02E0E45BB7B2FC4761FD9D39 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9580153E9C495880EACB9DDF /* APIClient.swift */; };
+		03B3185046C347342A1EA61B /* InsightEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C541416C2FEF682977587992 /* InsightEngineTests.swift */; };
 		15C030B5E7333EF65003E24F /* APIDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E8702101484687B6934B99 /* APIDecodingTests.swift */; };
 		1802EDEE6EE198A80E21B0A6 /* SleepTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15BE25A815630C814D81E68A /* SleepTrackerApp.swift */; };
+		1C9AB30ACDB3633EB8038E10 /* InsightsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E4DCAAF9680A6E4957065B0 /* InsightsSection.swift */; };
 		2728A6891DE3309B235A8045 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7177978FE4F8204E3CE8F481 /* DashboardView.swift */; };
 		27C6315F50F61C5A98E8F9EB /* NightFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F34AA4DE57D970DB8E68020 /* NightFormView.swift */; };
 		39AA325B9ED3F6BB6D0B5DEE /* NightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF115DB1C562FE40F6450F4E /* NightsView.swift */; };
@@ -20,6 +22,7 @@
 		B758F933A2BCD6EEF74B76AF /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 971157D027267943C454009C /* HealthKitService.swift */; };
 		B8767FAB5467BA1BBBCEBF34 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69AC85F01F6A7C646A978D5E /* Theme.swift */; };
 		C0E5434608E7C4F6904D946C /* PreviewFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9AFEB5829B09DBCF25EB4E /* PreviewFixtures.swift */; };
+		DA423A644148C94A86F17213 /* InsightEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5580F6AC99DA5DC157BB3A92 /* InsightEngine.swift */; };
 		DAF3B67051560CF1E43ED538 /* NightDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7903BFE2ED6678B70A5B10A0 /* NightDetailView.swift */; };
 		E0DCA98B4F730AD3725701D8 /* NightClustering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B7C56E4A34EF94655CE4AF9 /* NightClustering.swift */; };
 		E27BBD0EB22A1C1539FD3F24 /* NightClusteringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B349AC452C6BD603262BDCA /* NightClusteringTests.swift */; };
@@ -44,6 +47,8 @@
 		15BE25A815630C814D81E68A /* SleepTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTrackerApp.swift; sourceTree = "<group>"; };
 		3285AF20F99A5C535801BBDA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4C9AFEB5829B09DBCF25EB4E /* PreviewFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewFixtures.swift; sourceTree = "<group>"; };
+		5580F6AC99DA5DC157BB3A92 /* InsightEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightEngine.swift; sourceTree = "<group>"; };
+		5E4DCAAF9680A6E4957065B0 /* InsightsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsSection.swift; sourceTree = "<group>"; };
 		69AC85F01F6A7C646A978D5E /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		6A1BF1003FC3BB28BEEA1960 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		7177978FE4F8204E3CE8F481 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -55,6 +60,7 @@
 		7EC708340E3D39866D58C3D0 /* Sleep Tracker.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Sleep Tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9580153E9C495880EACB9DDF /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		971157D027267943C454009C /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
+		C541416C2FEF682977587992 /* InsightEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightEngineTests.swift; sourceTree = "<group>"; };
 		C9870B395EBF631D52FB88F8 /* TrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsView.swift; sourceTree = "<group>"; };
 		EF36D033FCD8B2694FDF3F08 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		FF115DB1C562FE40F6450F4E /* NightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightsView.swift; sourceTree = "<group>"; };
@@ -96,6 +102,7 @@
 		4AFBF0543AECDAF4FA0F4D81 /* Trends */ = {
 			isa = PBXGroup;
 			children = (
+				5E4DCAAF9680A6E4957065B0 /* InsightsSection.swift */,
 				C9870B395EBF631D52FB88F8 /* TrendsView.swift */,
 			);
 			path = Trends;
@@ -131,14 +138,15 @@
 		A47270FA443DCD2970AE46A6 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				15BE25A815630C814D81E68A /* SleepTrackerApp.swift */,
 				9DC61D4E1DEC163E31250BD7 /* Health */,
+				DD0FEF2E38D014B38FF8F72E /* Insights */,
 				EACCD74809E932CF91470414 /* Models */,
 				9FC9BF2C35E0337E98DF86AC /* Networking */,
 				2FB40AB730E2BCEE0C5E15E5 /* Preview */,
 				A8BD70A2D928A482FBDC1DDC /* Store */,
 				3C5A29890477C4A16C626090 /* Theme */,
 				F37540488AD0B6A01DCCDEBE /* Views */,
+				15BE25A815630C814D81E68A /* SleepTrackerApp.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -171,9 +179,18 @@
 			isa = PBXGroup;
 			children = (
 				77E8702101484687B6934B99 /* APIDecodingTests.swift */,
+				C541416C2FEF682977587992 /* InsightEngineTests.swift */,
 				7B349AC452C6BD603262BDCA /* NightClusteringTests.swift */,
 			);
 			path = Tests;
+			sourceTree = "<group>";
+		};
+		DD0FEF2E38D014B38FF8F72E /* Insights */ = {
+			isa = PBXGroup;
+			children = (
+				5580F6AC99DA5DC157BB3A92 /* InsightEngine.swift */,
+			);
+			path = Insights;
 			sourceTree = "<group>";
 		};
 		E0AC23A012ACD76CC48F31F2 /* Products */ = {
@@ -263,10 +280,10 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					3CA599125929BABB71D0D099 = {
-						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
 					};
 					64AB3EFAB03E29AC73363D34 = {
-						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -296,6 +313,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				15C030B5E7333EF65003E24F /* APIDecodingTests.swift in Sources */,
+				03B3185046C347342A1EA61B /* InsightEngineTests.swift in Sources */,
 				E27BBD0EB22A1C1539FD3F24 /* NightClusteringTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -308,6 +326,8 @@
 				F2266E95CAFBF6275C4E0919 /* Components.swift in Sources */,
 				2728A6891DE3309B235A8045 /* DashboardView.swift in Sources */,
 				B758F933A2BCD6EEF74B76AF /* HealthKitService.swift in Sources */,
+				DA423A644148C94A86F17213 /* InsightEngine.swift in Sources */,
+				1C9AB30ACDB3633EB8038E10 /* InsightsSection.swift in Sources */,
 				B4CAAED27E8C89EA849EE306 /* Models.swift in Sources */,
 				E0DCA98B4F730AD3725701D8 /* NightClustering.swift in Sources */,
 				DAF3B67051560CF1E43ED538 /* NightDetailView.swift in Sources */,
@@ -338,13 +358,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = local.sleeptracker.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shreyas2692.sleeptracker.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sleep Tracker.app/Sleep Tracker";
@@ -360,12 +381,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Support/Info.plist;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = local.sleeptracker.app;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shreyas2692.sleeptracker;
 				PRODUCT_NAME = "Sleep Tracker";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -405,11 +427,9 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -447,12 +467,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Support/Info.plist;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = local.sleeptracker.app;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shreyas2692.sleeptracker;
 				PRODUCT_NAME = "Sleep Tracker";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -492,11 +513,9 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -522,13 +541,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = local.sleeptracker.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shreyas2692.sleeptracker.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sleep Tracker.app/Sleep Tracker";
