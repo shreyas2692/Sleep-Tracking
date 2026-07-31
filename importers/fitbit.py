@@ -10,10 +10,10 @@ efficiency = float(efficiency). Stages come from ``levels.summary`` for
 "stages"-type logs (wake -> awake); "classic"-type logs (asleep/restless/
 awake summary) get ``stages: None``.
 
-Nap handling: a log with ``mainSleep: false`` is dropped only when another
-log covers the same dateOfSleep; a lone nap is kept rather than losing the
-night entirely. If several logs survive for one date, the longest wins.
-Duplicate logIds (overlapping export files in a zip) are de-duplicated.
+The longest ``mainSleep: true`` log (or longest log when none is marked main)
+provides the public night summary. Other same-date logs are retained as
+private sessions for nap-inclusive accounting. Duplicate logIds (overlapping
+export files in a zip) are de-duplicated.
 """
 
 import json
@@ -73,6 +73,7 @@ def parse_fitbit_takeout(file_or_path):
 
     parsed = []
     seen_ids = {}
+    seen_unidentified = set()
     for log in logs:
         night = _parse_log(log)
         if night is None:
@@ -87,12 +88,16 @@ def parse_fitbit_takeout(file_or_path):
                     )
                 continue
             seen_ids[log_id] = night
+        else:
+            signature = _log_signature(night)
+            if signature in seen_unidentified:
+                continue
+            seen_unidentified.add(signature)
         parsed.append(night)
 
     if not parsed:
         raise ValueError("no sleep logs found in Fitbit export")
 
-    # Drop naps (mainSleep false) only when another log covers the same date.
     by_date = {}
     for night in parsed:
         by_date.setdefault(night["date"], []).append(night)
@@ -102,14 +107,54 @@ def parse_fitbit_takeout(file_or_path):
         candidates = by_date[date]
         mains = [n for n in candidates if n["_main"]]
         keep = mains if mains else candidates
-        # One night per date: if several remain, keep the longest.
-        best = max(keep, key=lambda n: n["_duration"])
-        best.pop("_main")
-        best.pop("_duration")
-        nights.append(best)
+        best = max(keep, key=lambda n: n["_elapsed"])
+        result = {
+            key: value
+            for key, value in best.items()
+            if not key.startswith("_")
+        }
+        result["_sessions"] = [
+            _session_payload(candidate, main=candidate is best)
+            for candidate in sorted(
+                candidates,
+                key=lambda item: (
+                    item["_start"].replace(tzinfo=None),
+                    item["_end"].replace(tzinfo=None),
+                ),
+            )
+        ]
+        nights.append(result)
         if len(nights) > MAX_NORMALIZED_NIGHTS:
             raise ValueError("Fitbit export contains too many sleep nights")
     return nights
+
+
+def _log_signature(night):
+    stages = night["stages"]
+    return (
+        night["date"],
+        night["_start"].isoformat(),
+        night["_end"].isoformat(),
+        night["_duration"],
+        night["_elapsed"],
+        night["_main"],
+        night["efficiency"],
+        tuple(sorted(stages.items())) if stages is not None else None,
+    )
+
+
+def _session_payload(night, main):
+    start = night["_start"]
+    end = night["_end"]
+    aware = start.tzinfo is not None and start.utcoffset() is not None
+    return {
+        "start_local": start.replace(tzinfo=None).isoformat(timespec="seconds"),
+        "end_local": end.replace(tzinfo=None).isoformat(timespec="seconds"),
+        "start_utc": int(round(start.timestamp())) if aware else None,
+        "end_utc": int(round(end.timestamp())) if aware else None,
+        "elapsed_seconds": int(round(night["_elapsed"])),
+        "main": main,
+    }
 
 
 def _load_logs(file_or_path):
@@ -255,6 +300,9 @@ def _parse_log(log):
         "notes": notes,
         "_main": main,
         "_duration": duration,
+        "_elapsed": elapsed_seconds,
+        "_start": start_dt,
+        "_end": end_dt,
         "_log_id": log_id,
     }
 

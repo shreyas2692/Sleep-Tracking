@@ -7,6 +7,8 @@
   var SVGNS = "http://www.w3.org/2000/svg";
   var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+                     "July", "August", "September", "October", "November", "December"];
 
   var state = {
     records: Array.isArray(window.__INITIAL_RECORDS__) ? window.__INITIAL_RECORDS__ : [],
@@ -17,7 +19,10 @@
     range: "30d",       // chart range: 30d | 90d | 1y | all
     nights: null,       // /api/series nights for the current range (sparse, asc)
     nightsMap: null,    // date -> night (stages/source enrichment)
-    seriesMeta: null    // {start, end, range} from /api/series
+    seriesMeta: null,   // {start, end, range} from /api/series
+    patterns: {
+      status: "idle", nights: [], start: null, end: null
+    }
   };
   var mutationQueue = Promise.resolve();
 
@@ -141,6 +146,7 @@
         renderChart();
         renderRecords();
         refreshSeries(); // re-pull the current range so stages/sources stay fresh
+        refreshPatterns();
         return data;
       });
     }
@@ -843,6 +849,603 @@
     });
   }
 
+  /* ---------------- all-history patterns ---------------- */
+
+  var patternsReq = 0;
+  var patternsPromise = null;
+  var heatButtons = [];
+  var patternFocusDate = null;
+
+  function normalizePatternNights(raw) {
+    var byDate = {};
+    if (!Array.isArray(raw)) return [];
+    for (var i = 0; i < raw.length; i++) {
+      var night = raw[i];
+      if (!night || typeof night !== "object") continue;
+      var date = String(night.date || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      var num = dayNumFromISO(date);
+      if (!isFinite(num) || isoFromDayNum(num) !== date) continue;
+      var hours = Number(night.hours);
+      if (!isFinite(hours) || hours < 0 || hours > 24) continue;
+      var quality = night.quality;
+      if (quality !== null && quality !== undefined) {
+        quality = Number(quality);
+        if (!isFinite(quality) || quality < 1 || quality > 5) quality = null;
+      }
+      byDate[date] = {
+        date: date,
+        hours: hours,
+        quality: quality,
+        source: typeof night.source === "string" ? night.source : null
+      };
+    }
+    var dates = Object.keys(byDate).sort();
+    var nights = [];
+    for (var d = 0; d < dates.length; d++) nights.push(byDate[dates[d]]);
+    return nights;
+  }
+
+  function renderPatternsStatus() {
+    var p = state.patterns;
+    var loading = $("#patterns-loading");
+    var error = $("#patterns-error");
+    var empty = $("#patterns-empty");
+    var content = $("#patterns-content");
+    var card = $("#patterns");
+    var hasData = p.nights.length > 0;
+
+    if (loading) {
+      loading.hidden = p.status !== "loading";
+      loading.textContent = hasData ? "Refreshing patterns…" : "Loading patterns…";
+    }
+    if (error) error.hidden = p.status !== "error";
+    if (empty) empty.hidden = p.status !== "ready" || hasData;
+    if (content) content.hidden = !hasData;
+    if (card) card.classList.toggle("loading", p.status === "loading");
+  }
+
+  function loadPatterns(force) {
+    if (!force && patternsPromise) return patternsPromise;
+    var reqId = ++patternsReq;
+    state.patterns.status = "loading";
+    renderPatternsStatus();
+
+    var request = fetchJson("/api/series?range=all")
+      .then(function (data) {
+        if (reqId !== patternsReq) return null;
+        if (!data || !Array.isArray(data.nights)) {
+          throw new Error("Invalid patterns response.");
+        }
+        var nights = normalizePatternNights(data.nights);
+        state.patterns = {
+          status: "ready",
+          nights: nights,
+          start: data.start || null,
+          end: data.end || null
+        };
+        renderPatterns();
+        return data;
+      })
+      .catch(function (err) {
+        if (reqId !== patternsReq) return null;
+        state.patterns.status = "error";
+        var errorText = $("#patterns-error-text");
+        if (errorText) errorText.textContent = err.message;
+        patternsPromise = null;
+        renderPatternsStatus();
+        throw err;
+      });
+    patternsPromise = request;
+    return request;
+  }
+
+  function refreshPatterns() {
+    loadPatterns(true).catch(function () { /* the existing view stays available */ });
+  }
+
+  function patternYears() {
+    var seen = {};
+    var years = [];
+    for (var i = 0; i < state.patterns.nights.length; i++) {
+      var year = parseISO(state.patterns.nights[i].date).y;
+      if (!seen[year]) {
+        seen[year] = true;
+        years.push(year);
+      }
+    }
+    return years.sort(function (a, b) { return a - b; });
+  }
+
+  function renderPatternYearSelect(years) {
+    var select = $("#pattern-year");
+    if (!select) return null;
+    var previous = Number(select.value);
+    var selected = years.indexOf(previous) >= 0
+      ? previous : years[years.length - 1];
+    select.textContent = "";
+    for (var i = years.length - 1; i >= 0; i--) {
+      var option = el("option", null, years[i]);
+      option.value = String(years[i]);
+      option.selected = years[i] === selected;
+      select.appendChild(option);
+    }
+    select.disabled = years.length < 2;
+    return selected;
+  }
+
+  function patternThresholds() {
+    var debt = state.stats && state.stats.sleep_debt;
+    var goal = Number(debt && debt.need);
+    if (!isFinite(goal) || goal <= 0 || goal > 24) goal = 8;
+    var step = Math.max(0.1, Math.min(1, goal / 3));
+    return [goal - step * 2, goal - step, goal];
+  }
+
+  function heatLevel(hours, thresholds) {
+    if (hours < thresholds[0]) return 1;
+    if (hours < thresholds[1]) return 2;
+    if (hours < thresholds[2]) return 3;
+    return 4;
+  }
+
+  function compactHours(value) {
+    var rounded = Math.round(value * 10) / 10;
+    return String(rounded).replace(/\.0$/, "");
+  }
+
+  function updateHeatLegend(thresholds) {
+    var labels = [
+      "Under " + compactHours(thresholds[0]) + "h",
+      compactHours(thresholds[0]) + " to <" + compactHours(thresholds[1]) + "h",
+      compactHours(thresholds[1]) + " to <" + compactHours(thresholds[2]) + "h",
+      compactHours(thresholds[2]) + "h or more"
+    ];
+    for (var i = 0; i < labels.length; i++) {
+      var node = $("#heat-label-" + (i + 1));
+      if (node) node.textContent = labels[i];
+    }
+  }
+
+  function setHeatDetail(item) {
+    if (!item) return;
+    var text = fullDate(item.night.date) + " · " + fmt1(item.night.hours) + "h";
+    if (item.night.quality !== null && item.night.quality !== undefined) {
+      text += " · quality " + item.night.quality + "/5";
+    }
+    var source = sourceLabel(item.night.source);
+    if (source) text += " · " + source;
+    var detail = $("#heatmap-detail");
+    if (detail) detail.textContent = text;
+  }
+
+  function activateHeatCell(item, moveFocus) {
+    if (!item) return;
+    for (var i = 0; i < heatButtons.length; i++) {
+      var active = heatButtons[i] === item;
+      heatButtons[i].node.tabIndex = active ? 0 : -1;
+      heatButtons[i].node.setAttribute("aria-selected", active ? "true" : "false");
+    }
+    patternFocusDate = item.night.date;
+    setHeatDetail(item);
+    if (moveFocus) item.node.focus();
+  }
+
+  function heatCellKeydown(e, item) {
+    var index = heatButtons.indexOf(item);
+    var target = null;
+    if (e.key === "ArrowLeft") {
+      target = heatButtons[Math.max(0, index - 1)];
+    } else if (e.key === "ArrowRight") {
+      target = heatButtons[Math.min(heatButtons.length - 1, index + 1)];
+    } else if (e.key === "Home") {
+      target = heatButtons[0];
+    } else if (e.key === "End") {
+      target = heatButtons[heatButtons.length - 1];
+    } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      var direction = e.key === "ArrowUp" ? -1 : 1;
+      var wanted = item.num + direction * 7;
+      var scan = direction < 0 ? heatButtons.length - 1 : 0;
+      var stop = direction < 0 ? -1 : heatButtons.length;
+      for (; scan !== stop; scan += direction) {
+        if ((direction < 0 && heatButtons[scan].num <= wanted) ||
+            (direction > 0 && heatButtons[scan].num >= wanted)) {
+          target = heatButtons[scan];
+          break;
+        }
+      }
+      if (!target) target = direction < 0 ? heatButtons[0] :
+        heatButtons[heatButtons.length - 1];
+    } else {
+      return;
+    }
+    e.preventDefault();
+    activateHeatCell(target, true);
+  }
+
+  function renderHeatmap(year) {
+    var host = $("#heatmap");
+    if (!host || !year) return;
+    host.textContent = "";
+    heatButtons = [];
+
+    var nights = [];
+    var nightsByDate = {};
+    for (var i = 0; i < state.patterns.nights.length; i++) {
+      var night = state.patterns.nights[i];
+      if (parseISO(night.date).y === year) {
+        nights.push(night);
+        nightsByDate[night.date] = night;
+      }
+    }
+
+    var yearStart = Date.UTC(year, 0, 1) / 86400000;
+    var yearEnd = Date.UTC(year + 1, 0, 1) / 86400000 - 1;
+    var startDow = (new Date(yearStart * 86400000).getUTCDay() + 6) % 7;
+    var weeks = Math.ceil((startDow + yearEnd - yearStart + 1) / 7);
+    host.style.setProperty("--heat-weeks", String(weeks));
+
+    var months = el("div", "heat-months");
+    months.setAttribute("aria-hidden", "true");
+    months.appendChild(el("span", "heat-corner"));
+    for (var m = 0; m < 12; m++) {
+      var monthStart = Date.UTC(year, m, 1) / 86400000;
+      var week = Math.floor((startDow + monthStart - yearStart) / 7);
+      var monthLabel = el("span", "heat-month-label", MONTHS[m]);
+      monthLabel.style.gridColumn = String(week + 2);
+      months.appendChild(monthLabel);
+    }
+    host.appendChild(months);
+
+    var weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    var thresholds = patternThresholds();
+    updateHeatLegend(thresholds);
+    var today = dayNumFromISO(state.patterns.end || window.__TODAY__);
+
+    for (var dow = 0; dow < 7; dow++) {
+      var row = el("div", "heat-row");
+      row.setAttribute("role", "row");
+      var dayLabel = el("span", "heat-weekday", weekdays[dow]);
+      dayLabel.setAttribute("role", "rowheader");
+      row.appendChild(dayLabel);
+      for (var w = 0; w < weeks; w++) {
+        var dayNum = yearStart - startDow + w * 7 + dow;
+        var date = isoFromDayNum(dayNum);
+        var inYear = dayNum >= yearStart && dayNum <= yearEnd;
+        var record = inYear ? nightsByDate[date] : null;
+        var cell;
+        if (record) {
+          var level = heatLevel(record.hours, thresholds);
+          cell = el("button", "heat-cell heat-level-" + level);
+          cell.type = "button";
+          cell.setAttribute("role", "gridcell");
+          cell.setAttribute("aria-selected", "false");
+          var aria = fullDate(date) + ": " + fmt1(record.hours) + " hours";
+          if (record.quality !== null && record.quality !== undefined) {
+            aria += ", quality " + record.quality + " of 5";
+          }
+          var src = sourceLabel(record.source);
+          if (src) aria += ", " + src;
+          cell.setAttribute("aria-label", aria);
+          var item = { node: cell, num: dayNum, night: record };
+          heatButtons.push(item);
+          (function (bound) {
+            cell.addEventListener("focus", function () {
+              activateHeatCell(bound, false);
+            });
+            cell.addEventListener("click", function () {
+              activateHeatCell(bound, false);
+            });
+            cell.addEventListener("keydown", function (e) {
+              heatCellKeydown(e, bound);
+            });
+          })(item);
+        } else {
+          var cls = "heat-cell ";
+          if (!inYear) cls += "heat-outside";
+          else if (isFinite(today) && dayNum > today) cls += "heat-future";
+          else cls += "heat-empty";
+          cell = el("span", cls);
+          if (inYear) {
+            cell.setAttribute("role", "gridcell");
+            cell.setAttribute("aria-label",
+              fullDate(date) + (dayNum > today ? ": future date" : ": no record"));
+            cell.setAttribute("aria-disabled", "true");
+          } else {
+            cell.setAttribute("aria-hidden", "true");
+          }
+        }
+        row.appendChild(cell);
+      }
+      host.appendChild(row);
+    }
+
+    heatButtons.sort(function (a, b) { return a.num - b.num; });
+    var chosen = null;
+    for (var b = 0; b < heatButtons.length; b++) {
+      if (heatButtons[b].night.date === patternFocusDate) chosen = heatButtons[b];
+    }
+    if (!chosen && heatButtons.length) chosen = heatButtons[heatButtons.length - 1];
+    if (chosen) activateHeatCell(chosen, false);
+
+    var elapsedEnd = Math.min(yearEnd, isFinite(today) ? today : yearEnd);
+    var possible = Math.max(0, elapsedEnd - yearStart + 1);
+    var sum = 0;
+    for (var n = 0; n < nights.length; n++) sum += nights[n].hours;
+    var coverage = possible ? Math.round(nights.length / possible * 100) : 0;
+    var summary = $("#heatmap-summary");
+    if (summary) {
+      summary.textContent = nights.length + (nights.length === 1 ? " night" : " nights") +
+        " logged · " + (nights.length ? fmt1(sum / nights.length) + "h" : "–") +
+        " average · " +
+        coverage + "% coverage";
+    }
+  }
+
+  function monthGroups(nights) {
+    var groups = {};
+    for (var i = 0; i < nights.length; i++) {
+      var p = parseISO(nights[i].date);
+      var key = p.y + "-" + String(p.m).padStart(2, "0");
+      if (!groups[key]) {
+        var start = Date.UTC(p.y, p.m - 1, 1) / 86400000;
+        groups[key] = {
+          key: key,
+          label: MONTH_NAMES[p.m - 1] + " " + p.y,
+          start: start,
+          end: Date.UTC(p.y, p.m, 1) / 86400000 - 1,
+          nights: []
+        };
+      }
+      groups[key].nights.push(nights[i]);
+    }
+    return groupList(groups);
+  }
+
+  function seasonPeriod(date) {
+    var p = parseISO(date);
+    var startYear, endYear, startMonth, endMonth, name, key;
+    if (p.m === 12 || p.m <= 2) {
+      endYear = p.m === 12 ? p.y + 1 : p.y;
+      startYear = endYear - 1;
+      startMonth = 11;
+      endMonth = 2;
+      name = "Winter";
+      key = "winter-" + endYear;
+    } else if (p.m <= 5) {
+      startYear = endYear = p.y;
+      startMonth = 2;
+      endMonth = 5;
+      name = "Spring";
+      key = "spring-" + p.y;
+    } else if (p.m <= 8) {
+      startYear = endYear = p.y;
+      startMonth = 5;
+      endMonth = 8;
+      name = "Summer";
+      key = "summer-" + p.y;
+    } else {
+      startYear = endYear = p.y;
+      startMonth = 8;
+      endMonth = 11;
+      name = "Autumn";
+      key = "autumn-" + p.y;
+    }
+    return {
+      key: key,
+      label: name === "Winter"
+        ? name + " " + startYear + "-" + String(endYear).slice(-2)
+        : name + " " + startYear,
+      start: Date.UTC(startYear, startMonth, 1) / 86400000,
+      end: Date.UTC(endYear, endMonth, 1) / 86400000 - 1
+    };
+  }
+
+  function seasonGroups(nights) {
+    var groups = {};
+    for (var i = 0; i < nights.length; i++) {
+      var period = seasonPeriod(nights[i].date);
+      if (!groups[period.key]) {
+        groups[period.key] = {
+          key: period.key,
+          label: period.label,
+          start: period.start,
+          end: period.end,
+          nights: []
+        };
+      }
+      groups[period.key].nights.push(nights[i]);
+    }
+    return groupList(groups);
+  }
+
+  function groupList(groups) {
+    var list = [];
+    for (var key in groups) {
+      if (Object.prototype.hasOwnProperty.call(groups, key)) list.push(groups[key]);
+    }
+    return list.sort(function (a, b) { return a.start - b.start; });
+  }
+
+  function fillPeriodSelect(select, groups, selected) {
+    select.textContent = "";
+    for (var i = groups.length - 1; i >= 0; i--) {
+      var group = groups[i];
+      var count = group.nights.length;
+      var option = el("option", null, group.label + " · " + count +
+        (count === 1 ? " night" : " nights"));
+      option.value = group.key;
+      option.selected = group.key === selected;
+      select.appendChild(option);
+    }
+  }
+
+  function syncComparisonChoices(kind) {
+    var a = $("#" + kind + "-a");
+    var b = $("#" + kind + "-b");
+    if (!a || !b) return;
+    for (var i = 0; i < a.options.length; i++) {
+      a.options[i].disabled = a.options[i].value === b.value;
+    }
+    for (var j = 0; j < b.options.length; j++) {
+      b.options[j].disabled = b.options[j].value === a.value;
+    }
+  }
+
+  function populateComparison(kind, groups) {
+    var a = $("#" + kind + "-a");
+    var b = $("#" + kind + "-b");
+    if (!a || !b || !groups.length) return;
+    var keys = {};
+    for (var i = 0; i < groups.length; i++) keys[groups[i].key] = true;
+    var oldA = keys[a.value] ? a.value : groups[groups.length - 1].key;
+    var oldB = keys[b.value] && b.value !== oldA
+      ? b.value : (groups.length > 1 ? groups[groups.length - 2].key : oldA);
+    fillPeriodSelect(a, groups, oldA);
+    fillPeriodSelect(b, groups, oldB);
+    a.disabled = groups.length < 2;
+    b.disabled = groups.length < 2;
+    syncComparisonChoices(kind);
+    renderComparison(kind, groups);
+  }
+
+  function groupMetrics(group) {
+    var hours = 0;
+    var quality = 0;
+    var qualityCount = 0;
+    for (var i = 0; i < group.nights.length; i++) {
+      hours += group.nights[i].hours;
+      if (group.nights[i].quality !== null &&
+          group.nights[i].quality !== undefined) {
+        quality += group.nights[i].quality;
+        qualityCount++;
+      }
+    }
+    var today = dayNumFromISO(state.patterns.end || window.__TODAY__);
+    var end = Math.min(group.end, isFinite(today) ? today : group.end);
+    var possible = Math.max(1, end - group.start + 1);
+    return {
+      count: group.nights.length,
+      avgHours: hours / group.nights.length,
+      avgQuality: qualityCount ? quality / qualityCount : null,
+      qualityCount: qualityCount,
+      possible: possible,
+      coverage: Math.round(group.nights.length / possible * 100)
+    };
+  }
+
+  function comparisonPeriod(group) {
+    var metrics = groupMetrics(group);
+    var side = el("div", "compare-period");
+    side.appendChild(el("strong", "compare-period-name", group.label));
+    var values = el("div", "compare-values");
+    values.appendChild(el("span", "compare-hours", fmt1(metrics.avgHours) + "h avg"));
+    values.appendChild(el("span", "compare-quality",
+      metrics.avgQuality === null
+        ? "No quality ratings"
+        : fmt1(metrics.avgQuality) + "/5 quality" +
+          (metrics.qualityCount < metrics.count
+            ? " (" + metrics.qualityCount + " rated)" : "")));
+    side.appendChild(values);
+    side.appendChild(el("p", "compare-coverage",
+      metrics.count + " of " + metrics.possible + " nights logged (" +
+      metrics.coverage + "%)"));
+    if (metrics.count < 7) {
+      side.appendChild(el("p", "compare-caveat",
+        "Small sample; averages may shift."));
+    } else if (metrics.coverage < 50) {
+      side.appendChild(el("p", "compare-caveat",
+        "Partial history; averages use logged nights only."));
+    }
+    return { node: side, metrics: metrics };
+  }
+
+  function renderComparison(kind, groups) {
+    var host = $("#" + kind + "-results");
+    var a = $("#" + kind + "-a");
+    var b = $("#" + kind + "-b");
+    if (!host || !a || !b) return;
+    host.textContent = "";
+    var byKey = {};
+    for (var i = 0; i < groups.length; i++) byKey[groups[i].key] = groups[i];
+    var first = byKey[a.value];
+    var second = byKey[b.value];
+    if (!first) return;
+
+    var periods = el("div", "compare-periods");
+    var firstView = comparisonPeriod(first);
+    periods.appendChild(firstView.node);
+    if (groups.length < 2 || !second || first.key === second.key) {
+      host.appendChild(periods);
+      host.appendChild(el("p", "compare-delta",
+        "Add nights in another " + (kind === "month" ? "month" : "season") +
+        " to compare."));
+      return;
+    }
+
+    var secondView = comparisonPeriod(second);
+    periods.appendChild(secondView.node);
+    host.appendChild(periods);
+    var difference = firstView.metrics.avgHours - secondView.metrics.avgHours;
+    var summary;
+    if (Math.abs(difference) < 0.05) {
+      summary = "Average sleep was the same.";
+    } else {
+      summary = first.label + " averaged " + fmt1(Math.abs(difference)) +
+        "h " + (difference > 0 ? "more" : "less") + " than " + second.label + ".";
+    }
+    host.appendChild(el("p", "compare-delta", summary));
+  }
+
+  function renderPatterns() {
+    renderPatternsStatus();
+    if (!state.patterns.nights.length) {
+      var select = $("#pattern-year");
+      if (select) {
+        select.textContent = "";
+        select.appendChild(el("option", null, "No data"));
+        select.disabled = true;
+      }
+      return;
+    }
+    var years = patternYears();
+    var selectedYear = renderPatternYearSelect(years);
+    renderHeatmap(selectedYear);
+    populateComparison("month", monthGroups(state.patterns.nights));
+    populateComparison("season", seasonGroups(state.patterns.nights));
+  }
+
+  function initPatterns() {
+    var year = $("#pattern-year");
+    if (year) {
+      year.addEventListener("change", function () {
+        patternFocusDate = null;
+        renderHeatmap(Number(year.value));
+      });
+    }
+    var retry = $("#patterns-retry");
+    if (retry) retry.addEventListener("click", function () {
+      loadPatterns(true).catch(function () {});
+    });
+    var kinds = ["month", "season"];
+    for (var i = 0; i < kinds.length; i++) {
+      (function (kind) {
+        var a = $("#" + kind + "-a");
+        var b = $("#" + kind + "-b");
+        function changed() {
+          syncComparisonChoices(kind);
+          var groups = kind === "month"
+            ? monthGroups(state.patterns.nights)
+            : seasonGroups(state.patterns.nights);
+          renderComparison(kind, groups);
+        }
+        if (a) a.addEventListener("change", changed);
+        if (b) b.addEventListener("change", changed);
+      })(kinds[i]);
+    }
+    loadPatterns(false).catch(function () {});
+  }
+
   /* ---------------- records table ---------------- */
 
   function td(cls, text) {
@@ -1200,6 +1803,7 @@
           rep + " replaced, " + sk + " skipped).";
         msg.className = "msg ok";
         refreshSeries();
+        refreshPatterns();
       }).catch(function (err) {
         setMsg(msg, err.message, "err");
       }).then(function () {
@@ -1280,6 +1884,7 @@
     initImport();
     initWearable();
     initRange();
+    initPatterns();
     initLoadMore();
     renderStats();
     renderChart();

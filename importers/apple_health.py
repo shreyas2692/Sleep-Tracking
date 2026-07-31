@@ -4,6 +4,8 @@ Streams the XML with Expat (exports can be hundreds of MB), keeps only
 ``HKCategoryTypeIdentifierSleepAnalysis`` records, clusters them into nights
 (gap < 4h = same night), de-duplicates overlapping per-stage intervals from
 multiple devices, and returns normalized night dicts (see importers.__init__).
+Each public night summary also carries private ``_sessions`` metadata so the
+database can preserve exact elapsed time and same-date naps.
 
 Stage mapping:
     AsleepDeep -> deep, AsleepREM -> rem, AsleepCore -> light, Awake -> awake.
@@ -249,21 +251,52 @@ def _cluster_nights(records):
 
 
 def _select_main_nights(clusters):
-    """Return at most one qualifying cluster per wake date, choosing longest."""
-    selected = {}
+    """Summarize each wake date while retaining every qualifying session."""
+    by_date = {}
     for cluster in clusters:
         bedtime = min(r[0] for r in cluster)
         wake = max(r[1] for r in cluster)
         duration = wake - bedtime
         if not (MIN_NIGHT_DURATION <= duration <= MAX_NIGHT_DURATION):
             continue
-        night = _build_night(cluster)
-        existing = selected.get(night["date"])
-        if existing is None or duration > existing[0]:
-            selected[night["date"]] = (duration, night)
-        if len(selected) > MAX_NORMALIZED_NIGHTS:
+        date_str = wake.strftime("%Y-%m-%d")
+        by_date.setdefault(date_str, []).append(
+            (duration.total_seconds(), bedtime, wake, cluster)
+        )
+        if len(by_date) > MAX_NORMALIZED_NIGHTS:
             raise ValueError("Apple Health export contains too many sleep nights")
-    return [selected[date][1] for date in sorted(selected)]
+
+    nights = []
+    for date_str in sorted(by_date):
+        candidates = by_date[date_str]
+        main = max(candidates, key=lambda item: item[0])
+        night = _build_night(main[3])
+        sessions = []
+        for candidate in candidates:
+            duration, bedtime, wake, _cluster = candidate
+            sessions.append(
+                _session_payload(
+                    bedtime,
+                    wake,
+                    elapsed_seconds=duration,
+                    main=candidate is main,
+                )
+            )
+        night["_sessions"] = sessions
+        nights.append(night)
+    return nights
+
+
+def _session_payload(start, end, elapsed_seconds, main):
+    """Private exact interval metadata persisted by the database layer."""
+    return {
+        "start_local": start.replace(tzinfo=None).isoformat(timespec="seconds"),
+        "end_local": end.replace(tzinfo=None).isoformat(timespec="seconds"),
+        "start_utc": int(round(start.timestamp())),
+        "end_utc": int(round(end.timestamp())),
+        "elapsed_seconds": int(round(elapsed_seconds)),
+        "main": main,
+    }
 
 
 def _subtract_intervals(intervals, blockers):

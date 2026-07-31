@@ -22,6 +22,14 @@ FITBIT_CLASSIC = FIXTURES / "fitbit_classic.json"
 FITBIT_ZIP = FIXTURES / "fitbit_takeout.zip"
 
 
+def _public_nights(nights):
+    """Parser-private session metadata is not part of the public night shape."""
+    return [
+        {key: value for key, value in night.items() if key != "_sessions"}
+        for night in nights
+    ]
+
+
 def _zip_bytes(entries, compression=zipfile.ZIP_STORED):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=compression) as zf:
@@ -106,20 +114,30 @@ FITBIT_NIGHT_NOV5 = {
 
 class TestAppleHealth:
     def test_xml_path_exact_nights(self):
-        assert parse_apple_health(str(APPLE_XML)) == [APPLE_NIGHT_1, APPLE_NIGHT_2]
+        assert _public_nights(parse_apple_health(str(APPLE_XML))) == [
+            APPLE_NIGHT_1, APPLE_NIGHT_2,
+        ]
 
     def test_accepts_pathlib_path_and_file_like(self):
-        assert parse_apple_health(APPLE_XML) == [APPLE_NIGHT_1, APPLE_NIGHT_2]
+        assert _public_nights(parse_apple_health(APPLE_XML)) == [
+            APPLE_NIGHT_1, APPLE_NIGHT_2,
+        ]
         with open(APPLE_XML, "rb") as f:
-            assert parse_apple_health(f) == [APPLE_NIGHT_1, APPLE_NIGHT_2]
+            assert _public_nights(parse_apple_health(f)) == [
+                APPLE_NIGHT_1, APPLE_NIGHT_2,
+            ]
 
     def test_zip_path_finds_export_xml_not_cda(self):
         # The zip also contains export_cda.xml, which must be skipped.
-        assert parse_apple_health(str(APPLE_ZIP)) == [APPLE_NIGHT_1, APPLE_NIGHT_2]
+        assert _public_nights(parse_apple_health(str(APPLE_ZIP))) == [
+            APPLE_NIGHT_1, APPLE_NIGHT_2,
+        ]
 
     def test_zip_file_like(self):
         with open(APPLE_ZIP, "rb") as f:
-            assert parse_apple_health(f) == [APPLE_NIGHT_1, APPLE_NIGHT_2]
+            assert _public_nights(parse_apple_health(f)) == [
+                APPLE_NIGHT_1, APPLE_NIGHT_2,
+            ]
 
     def test_overlapping_deep_intervals_deduplicated(self):
         nights = parse_apple_health(str(APPLE_XML))
@@ -144,7 +162,7 @@ class TestAppleHealth:
             '</HealthData>'
         )
         nights = parse_apple_health(io.BytesIO(xml.encode()))
-        assert nights == [{
+        assert _public_nights(nights) == [{
             "date": "2023-11-02",
             "bedtime": "23:00",
             "wake": "06:30",
@@ -239,6 +257,20 @@ class TestAppleHealth:
         assert night["bedtime"] == "00:00"
         assert night["wake"] == "08:00"
         assert night["stages"]["deep"] == 540
+        assert night["_sessions"][0]["elapsed_seconds"] == 9 * 60 * 60
+
+    def test_dst_spring_forward_preserves_seven_elapsed_hours(self):
+        xml = (
+            '<HealthData><Record type="HKCategoryTypeIdentifierSleepAnalysis" '
+            'value="HKCategoryValueSleepAnalysisAsleep" '
+            'startDate="2024-03-10 00:00:00 -0500" '
+            'endDate="2024-03-10 08:00:00 -0400"/>'
+            '</HealthData>'
+        )
+        night = parse_apple_health(io.BytesIO(xml.encode()))[0]
+        assert night["bedtime"] == "00:00"
+        assert night["wake"] == "08:00"
+        assert night["_sessions"][0]["elapsed_seconds"] == 7 * 60 * 60
 
     def test_cross_stage_overlap_uses_precedence_without_double_counting(self):
         records = [
@@ -333,6 +365,14 @@ class TestAppleHealth:
         assert nights[0]["date"] == "2023-11-02"
         assert nights[0]["bedtime"] == "00:00"
         assert nights[0]["wake"] == "03:00"
+        assert [session["elapsed_seconds"] for session in nights[0]["_sessions"]] == [
+            3 * 60 * 60,
+            2 * 60 * 60,
+        ]
+        assert [session["main"] for session in nights[0]["_sessions"]] == [
+            True,
+            False,
+        ]
 
     @pytest.mark.parametrize("mutator", [_corrupt_first_member, _mark_first_member_encrypted])
     def test_corrupt_or_encrypted_export_member_is_value_error(self, mutator):
@@ -371,34 +411,44 @@ class TestAppleHealth:
 # --------------------------------------------------------------------- Fitbit
 
 class TestFitbit:
-    def test_stages_json_exact_nights_and_nap_excluded(self):
+    def test_stages_json_exact_main_nights_and_nap_retained_privately(self):
         # Fixture holds two mainSleep logs plus a Nov 2 afternoon nap; the nap
-        # must not appear because a main log covers the same dateOfSleep.
+        # does not replace the public main session but remains for accounting.
         nights = parse_fitbit_takeout(str(FITBIT_STAGES))
-        assert nights == [FITBIT_NIGHT_NOV2, FITBIT_NIGHT_NOV3]
+        assert _public_nights(nights) == [FITBIT_NIGHT_NOV2, FITBIT_NIGHT_NOV3]
+        assert [session["main"] for session in nights[0]["_sessions"]] == [
+            True, False,
+        ]
+        assert sum(
+            session["elapsed_seconds"] for session in nights[0]["_sessions"]
+        ) == 8 * 3600 + 43 * 60 + 30
 
     def test_classic_log_stages_none_and_lone_nap_kept(self):
         # mainSleep is false but it is the only log for 2023-11-05: keep it.
         nights = parse_fitbit_takeout(str(FITBIT_CLASSIC))
-        assert nights == [FITBIT_NIGHT_NOV5]
+        assert _public_nights(nights) == [FITBIT_NIGHT_NOV5]
 
     def test_zip_combines_files_sorted_ascending(self):
         nights = parse_fitbit_takeout(str(FITBIT_ZIP))
-        assert nights == [FITBIT_NIGHT_NOV2, FITBIT_NIGHT_NOV3, FITBIT_NIGHT_NOV5]
+        assert _public_nights(nights) == [
+            FITBIT_NIGHT_NOV2, FITBIT_NIGHT_NOV3, FITBIT_NIGHT_NOV5,
+        ]
 
     def test_zip_file_like(self):
         with open(FITBIT_ZIP, "rb") as f:
-            assert parse_fitbit_takeout(f) == [
+            assert _public_nights(parse_fitbit_takeout(f)) == [
                 FITBIT_NIGHT_NOV2, FITBIT_NIGHT_NOV3, FITBIT_NIGHT_NOV5,
             ]
 
     def test_json_file_like(self):
         with open(FITBIT_STAGES, "rb") as f:
-            assert parse_fitbit_takeout(f) == [FITBIT_NIGHT_NOV2, FITBIT_NIGHT_NOV3]
+            assert _public_nights(parse_fitbit_takeout(f)) == [
+                FITBIT_NIGHT_NOV2, FITBIT_NIGHT_NOV3,
+            ]
 
     def test_plain_python_list_accepted(self):
         logs = json.loads(FITBIT_CLASSIC.read_text())
-        assert parse_fitbit_takeout(logs) == [FITBIT_NIGHT_NOV5]
+        assert _public_nights(parse_fitbit_takeout(logs)) == [FITBIT_NIGHT_NOV5]
 
     def test_malformed_logs_skipped(self):
         logs = json.loads(FITBIT_CLASSIC.read_text())
@@ -409,12 +459,13 @@ class TestFitbit:
             "not even a dict",
             None,
         ]
-        assert parse_fitbit_takeout(logs) == [FITBIT_NIGHT_NOV5]
+        assert _public_nights(parse_fitbit_takeout(logs)) == [FITBIT_NIGHT_NOV5]
 
     def test_duplicate_log_ids_deduplicated(self):
         logs = json.loads(FITBIT_STAGES.read_text())
         nights = parse_fitbit_takeout(logs + logs)  # overlapping export files
-        assert nights == [FITBIT_NIGHT_NOV2, FITBIT_NIGHT_NOV3]
+        assert _public_nights(nights) == [FITBIT_NIGHT_NOV2, FITBIT_NIGHT_NOV3]
+        assert len(nights[0]["_sessions"]) == 2
 
     def test_empty_array_raises(self):
         with pytest.raises(ValueError):
@@ -479,6 +530,40 @@ class TestFitbit:
         assert night["date"] == "2023-11-05"
         assert night["bedtime"] == "00:00"
         assert night["wake"] == "08:00"
+        assert night["_sessions"][0]["elapsed_seconds"] == 9 * 60 * 60
+
+    def test_declared_duration_does_not_replace_timestamp_elapsed_time(self):
+        night = parse_fitbit_takeout([
+            _fitbit_log(
+                dateOfSleep="2023-11-05",
+                startTime="2023-11-05T00:00:00-04:00",
+                endTime="2023-11-05T08:00:00-04:00",
+                duration=6 * 60 * 60 * 1000,
+            )
+        ])[0]
+        assert night["_sessions"][0]["elapsed_seconds"] == 8 * 60 * 60
+
+    def test_main_selection_uses_timestamp_elapsed_time(self):
+        longer_interval = _fitbit_log(
+            logId=1,
+            startTime="2023-11-02T22:30:00.000",
+            endTime="2023-11-03T06:30:00.000",
+            duration=6 * 60 * 60 * 1000,
+        )
+        shorter_interval = _fitbit_log(
+            logId=2,
+            startTime="2023-11-02T23:00:00.000",
+            endTime="2023-11-03T06:30:00.000",
+            duration=9.5 * 60 * 60 * 1000,
+        )
+        night = parse_fitbit_takeout([longer_interval, shorter_interval])[0]
+        assert night["bedtime"] == "22:30"
+        assert [session["main"] for session in night["_sessions"]] == [True, False]
+
+    def test_duplicate_logs_without_ids_do_not_duplicate_sessions(self):
+        log = _fitbit_log(logId=None)
+        night = parse_fitbit_takeout([log, dict(log)])[0]
+        assert len(night["_sessions"]) == 1
 
     @pytest.mark.parametrize(
         "overrides",

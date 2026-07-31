@@ -156,6 +156,88 @@
       <span class="visually-hidden" id="chart-live" aria-live="polite"></span>
     </section>
 
+    <section class="card patterns-card" id="patterns" aria-labelledby="patterns-title">
+      <div class="card-head patterns-head">
+        <div>
+          <h2 id="patterns-title">Patterns</h2>
+          <p class="card-sub">Calendar and period comparisons across all history</p>
+        </div>
+        <label class="pattern-year-control" for="pattern-year">
+          <span>Year</span>
+          <select id="pattern-year" disabled>
+            <option>Loading&hellip;</option>
+          </select>
+        </label>
+      </div>
+
+      <p class="patterns-state" id="patterns-loading" role="status">Loading patterns&hellip;</p>
+      <div class="patterns-state patterns-error" id="patterns-error" role="alert" hidden>
+        <span id="patterns-error-text"></span>
+        <button class="btn btn-small" id="patterns-retry" type="button">Retry</button>
+      </div>
+      <p class="patterns-state" id="patterns-empty" hidden>
+        No history yet. Import or log nights to see patterns.
+      </p>
+
+      <div id="patterns-content" hidden>
+        <section class="pattern-section" aria-labelledby="heatmap-title">
+          <div class="pattern-subhead">
+            <h3 id="heatmap-title">Year map</h3>
+            <p id="heatmap-summary"></p>
+          </div>
+          <div class="heatmap-scroll">
+            <div id="heatmap" class="heatmap" role="grid"
+                 aria-labelledby="heatmap-title"
+                 aria-describedby="heatmap-summary heatmap-detail"></div>
+          </div>
+          <div class="heatmap-footer">
+            <p class="heatmap-detail" id="heatmap-detail" aria-live="polite"></p>
+            <div class="heatmap-legend" aria-label="Hours slept legend">
+              <span><i class="heat-swatch heat-empty" aria-hidden="true"></i>No record</span>
+              <span><i class="heat-swatch heat-level-1" aria-hidden="true"></i><b id="heat-label-1"></b></span>
+              <span><i class="heat-swatch heat-level-2" aria-hidden="true"></i><b id="heat-label-2"></b></span>
+              <span><i class="heat-swatch heat-level-3" aria-hidden="true"></i><b id="heat-label-3"></b></span>
+              <span><i class="heat-swatch heat-level-4" aria-hidden="true"></i><b id="heat-label-4"></b></span>
+            </div>
+          </div>
+        </section>
+
+        <div class="pattern-comparisons">
+          <section class="comparison" aria-labelledby="month-compare-title">
+            <h3 id="month-compare-title">Month to month</h3>
+            <div class="compare-controls">
+              <label class="compare-field" for="month-a">
+                <span>First month</span>
+                <select id="month-a"></select>
+              </label>
+              <span class="compare-vs" aria-hidden="true">vs</span>
+              <label class="compare-field" for="month-b">
+                <span>Second month</span>
+                <select id="month-b"></select>
+              </label>
+            </div>
+            <div class="compare-results" id="month-results" aria-live="polite"></div>
+          </section>
+
+          <section class="comparison" aria-labelledby="season-compare-title">
+            <h3 id="season-compare-title">Season to season</h3>
+            <div class="compare-controls">
+              <label class="compare-field" for="season-a">
+                <span>First season</span>
+                <select id="season-a"></select>
+              </label>
+              <span class="compare-vs" aria-hidden="true">vs</span>
+              <label class="compare-field" for="season-b">
+                <span>Second season</span>
+                <select id="season-b"></select>
+              </label>
+            </div>
+            <div class="compare-results" id="season-results" aria-live="polite"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
     <section class="card">
       <div class="card-head">
         <h2>Log sleep</h2>

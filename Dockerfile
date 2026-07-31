@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.13-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -15,18 +15,21 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN addgroup --system app \
     && adduser --system --ingroup app app \
     && mkdir -p /data \
-    && chown app:app /data
+    && chown app:app /data \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --chown=app:app app.py database.py ./
 COPY --chown=app:app importers ./importers
 COPY --chown=app:app static ./static
 COPY --chown=app:app templates ./templates
-
-USER app
+COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE ${PORT}
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen(f\"http://127.0.0.1:{os.environ['PORT']}/healthz\", timeout=2)"]
+    CMD ["gosu", "app", "python", "-c", "import os, urllib.request; urllib.request.urlopen(f\"http://127.0.0.1:{os.environ['PORT']}/healthz\", timeout=2)"]
 
-CMD ["/bin/sh", "-c", "exec gunicorn app:app --bind \"${HOST}:${PORT}\" --workers 2 --timeout 120"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["/bin/sh", "-c", "exec gunicorn app:app --bind \"${HOST}:${PORT}\" --workers 2 --timeout 6000 --graceful-timeout 30"]

@@ -1,6 +1,7 @@
 """Wave-1 backend tests: schema migration, /import/wearable, /api/series,
 and sleep-debt accounting."""
 import io
+import json
 import os
 import sqlite3
 import threading
@@ -27,7 +28,7 @@ LEGACY_SCHEMA = """
 
 NEW_COLUMNS = {
     "source", "deep_minutes", "rem_minutes", "light_minutes",
-    "awake_minutes", "efficiency",
+    "awake_minutes", "efficiency", "sessions_json",
 }
 
 
@@ -65,6 +66,18 @@ def _span_night_xml(wake_dates):
         + "".join(records)
         + "</HealthData>"
     ).encode()
+
+
+def _session(start_local, end_local, hours, main=True, utc_start=None):
+    seconds = int(hours * 60 * 60)
+    return {
+        "start_local": start_local,
+        "end_local": end_local,
+        "start_utc": utc_start,
+        "end_utc": utc_start + seconds if utc_start is not None else None,
+        "elapsed_seconds": seconds,
+        "main": main,
+    }
 
 
 # ── Schema migration ──────────────────────────────────────────
@@ -128,7 +141,37 @@ def test_concurrent_legacy_migration_is_serialized(temp_db):
     conn.close()
     assert len(columns) == len(set(columns))
     assert NEW_COLUMNS <= set(columns)
-    assert version == 1
+    assert version == 2
+
+
+def test_wave1_schema_upgrades_to_sessions_json(temp_db):
+    conn = sqlite3.connect(temp_db)
+    conn.execute(LEGACY_SCHEMA)
+    for name, declaration in (
+        ("source", "TEXT NOT NULL DEFAULT 'manual'"),
+        ("deep_minutes", "INTEGER"),
+        ("rem_minutes", "INTEGER"),
+        ("light_minutes", "INTEGER"),
+        ("awake_minutes", "INTEGER"),
+        ("efficiency", "REAL"),
+    ):
+        conn.execute(f"ALTER TABLE sleep_records ADD COLUMN {name} {declaration}")
+    conn.execute("PRAGMA user_version = 1")
+    conn.execute(
+        "INSERT INTO sleep_records "
+        "(date, bedtime, wake_time, quality, source) "
+        "VALUES ('2023-11-05', '00:00', '08:00', 3, 'apple_health')"
+    )
+    conn.commit()
+    conn.close()
+
+    assert db.get_all_records()[0]["hours"] == 8.0
+    conn = sqlite3.connect(temp_db)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(sleep_records)")}
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    conn.close()
+    assert "sessions_json" in columns
+    assert version == 2
 
 
 def test_migration_collapses_legacy_wearable_duplicates(temp_db):
@@ -216,6 +259,42 @@ def test_import_apple_raw_xml(client):
     body = resp.get_json()
     assert body["imported"] == 2
     assert {r["date"] for r in body["records"]} == {"2023-11-02", "2023-11-03"}
+
+
+def test_import_dst_fallback_uses_exact_elapsed_hours(client):
+    xml = (
+        '<HealthData><Record type="HKCategoryTypeIdentifierSleepAnalysis" '
+        'value="HKCategoryValueSleepAnalysisAsleep" '
+        'startDate="2023-11-05 00:00:00 -0400" '
+        'endDate="2023-11-05 08:00:00 -0500"/>'
+        '</HealthData>'
+    ).encode()
+    body = _upload(client, xml, "export.xml").get_json()
+    assert body["records"][0]["bedtime"] == "00:00"
+    assert body["records"][0]["wake"] == "08:00"
+    assert body["records"][0]["hours"] == 9.0
+    assert "_sessions" not in body["records"][0]
+
+
+def test_import_apple_secondary_session_contributes_to_debt(client):
+    wake_date = db.get_today()
+    date_str = wake_date.isoformat()
+    xml = (
+        '<HealthData>'
+        '<Record type="HKCategoryTypeIdentifierSleepAnalysis" '
+        'value="HKCategoryValueSleepAnalysisAsleep" '
+        f'startDate="{date_str} 00:00:00 -0400" '
+        f'endDate="{date_str} 03:00:00 -0400"/>'
+        '<Record type="HKCategoryTypeIdentifierSleepAnalysis" '
+        'value="HKCategoryValueSleepAnalysisAsleep" '
+        f'startDate="{date_str} 08:00:00 -0400" '
+        f'endDate="{date_str} 10:00:00 -0400"/>'
+        '</HealthData>'
+    ).encode()
+    body = _upload(client, xml, "export.xml").get_json()
+    assert len(body["records"]) == 1
+    assert body["records"][0]["hours"] == 3.0
+    assert body["stats"]["sleep_debt"]["total_debt_hours"] == 3.0
 
 
 def test_import_fitbit_takeout_zip(client):
@@ -491,6 +570,73 @@ def test_sleep_debt_manual_naps_sum():
     assert debt["total_debt_hours"] == -1.0
 
 
+def test_sleep_debt_adds_disjoint_manual_nap_to_wearable_night():
+    wake_date = db.get_today()
+    date_str = wake_date.isoformat()
+    previous = (wake_date - timedelta(days=1)).isoformat()
+    db.upsert_wearable_records([{
+        "date": date_str,
+        "bedtime": "23:00",
+        "wake": "07:00",
+        "quality": 3,
+        "notes": "",
+        "source": "apple_health",
+        "stages": None,
+        "efficiency": None,
+        "_sessions": [
+            _session(f"{previous}T23:00:00", f"{date_str}T07:00:00", 8),
+        ],
+    }])
+    db.add_record(date_str, "23:00", "07:00", 3, "duplicate main")
+    db.add_record(date_str, "14:00", "15:00", 3, "manual nap")
+
+    debt = db.get_stats()["sleep_debt"]
+    assert debt["total_debt_hours"] == -1.0
+
+
+def test_sleep_debt_deduplicates_same_nap_across_sources():
+    wake_date = db.get_today()
+    date_str = wake_date.isoformat()
+    previous = (wake_date - timedelta(days=1)).isoformat()
+    apple_sessions = [
+        _session(f"{previous}T23:00:00", f"{date_str}T07:00:00", 8),
+        _session(
+            f"{date_str}T14:00:00",
+            f"{date_str}T15:00:00",
+            1,
+            main=False,
+        ),
+    ]
+    fitbit_sessions = [
+        _session(f"{previous}T23:30:00", f"{date_str}T07:00:00", 7.5),
+        _session(
+            f"{date_str}T14:05:00",
+            f"{date_str}T14:55:00",
+            50 / 60,
+            main=False,
+        ),
+    ]
+    for source, bedtime, sessions in (
+        ("apple_health", "23:00", apple_sessions),
+        ("fitbit", "23:30", fitbit_sessions),
+    ):
+        db.upsert_wearable_records([{
+            "date": date_str,
+            "bedtime": bedtime,
+            "wake": "07:00",
+            "quality": 3,
+            "notes": "",
+            "source": source,
+            "stages": None,
+            "efficiency": None,
+            "_sessions": sessions,
+        }])
+    db.add_record(date_str, "14:00", "15:00", 3, "same nap")
+
+    debt = db.get_stats()["sleep_debt"]
+    assert debt["total_debt_hours"] == -1.0
+
+
 def test_sleep_debt_multi_source_same_date_uses_max_not_sum():
     db.add_record(_d(0), "23:00", "05:00", 3, "")  # manual, 6h
     db.upsert_wearable_records([{
@@ -508,6 +654,34 @@ def test_oversleep_reduces_cumulative_debt():
     debt = db.get_stats()["sleep_debt"]
     assert debt["rolling_14d"][-1]["cumulative_debt_hours"] == 0.0
     assert debt["total_debt_hours"] == 0.0
+
+
+def test_reimport_replaces_private_sessions():
+    wake_date = db.get_today()
+    date_str = wake_date.isoformat()
+    previous = (wake_date - timedelta(days=1)).isoformat()
+    base = {
+        "date": date_str,
+        "bedtime": "23:00",
+        "wake": "07:00",
+        "quality": 3,
+        "notes": "",
+        "source": "fitbit",
+        "stages": None,
+        "efficiency": None,
+    }
+    main = _session(f"{previous}T23:00:00", f"{date_str}T07:00:00", 8)
+    nap = _session(
+        f"{date_str}T14:00:00",
+        f"{date_str}T15:00:00",
+        1,
+        main=False,
+    )
+    db.upsert_wearable_records([{**base, "_sessions": [main, nap]}])
+    assert db.get_stats()["sleep_debt"]["total_debt_hours"] == -1.0
+
+    db.upsert_wearable_records([{**base, "_sessions": [main]}])
+    assert db.get_stats()["sleep_debt"]["total_debt_hours"] == 0.0
 
 
 # ── upsert_wearable_records (db-level) ────────────────────────
@@ -540,6 +714,74 @@ def test_upsert_updates_row_in_place_and_rejects_duplicates(temp_db):
     assert records[0]["notes"] == "v2"
     assert records[0]["stages"] == {"deep": 50, "rem": 70, "light": 260, "awake": 30}
     assert records[0]["efficiency"] == 90.0
+
+
+def test_sessions_json_is_private_and_corruption_falls_back(temp_db):
+    night = {
+        "date": "2023-11-05",
+        "bedtime": "00:00",
+        "wake": "08:00",
+        "quality": 3,
+        "notes": "",
+        "source": "apple_health",
+        "stages": None,
+        "efficiency": None,
+        "_sessions": [
+            _session(
+                "2023-11-05T00:00:00",
+                "2023-11-05T08:00:00",
+                9,
+                utc_start=1_699_156_800,
+            ),
+        ],
+    }
+    db.upsert_wearable_records([night])
+    record = db.get_all_records()[0]
+    assert record["hours"] == 9.0
+    assert set(record) == {
+        "id", "date", "bedtime", "wake", "quality", "notes", "hours",
+        "source", "stages", "efficiency",
+    }
+
+    conn = sqlite3.connect(temp_db)
+    payload = conn.execute(
+        "SELECT sessions_json FROM sleep_records"
+    ).fetchone()[0]
+    assert len(json.loads(payload)["sessions"]) == 1
+    conn.execute("UPDATE sleep_records SET sessions_json = '{not-json'")
+    conn.commit()
+    conn.close()
+
+    assert db.get_all_records()[0]["hours"] == 8.0
+
+
+def test_edit_clears_stale_exact_session_duration():
+    night = {
+        "date": "2023-11-05",
+        "bedtime": "00:00",
+        "wake": "08:00",
+        "quality": 3,
+        "notes": "",
+        "source": "fitbit",
+        "stages": None,
+        "efficiency": None,
+        "_sessions": [
+            _session(
+                "2023-11-05T00:00:00",
+                "2023-11-05T08:00:00",
+                9,
+                utc_start=1_699_156_800,
+            ),
+        ],
+    }
+    db.upsert_wearable_records([night])
+    record = db.get_all_records()[0]
+    assert record["hours"] == 9.0
+
+    assert db.update_record(
+        record["id"], "2023-11-05", "00:00", "08:00", 3, "edited"
+    )
+    assert db.get_all_records()[0]["hours"] == 8.0
 
 
 def test_concurrent_first_upserts_create_one_wearable_row():

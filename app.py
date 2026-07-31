@@ -1,6 +1,7 @@
 import csv
 import hmac
 import io
+import json
 import math
 import os
 import re
@@ -47,9 +48,13 @@ from importers import parse_apple_health, parse_fitbit_takeout
 MAX_NOTES_LEN = 500
 MAX_CSV_BYTES = 1024 * 1024
 MAX_CSV_ROWS = 10_000
+MAX_INGEST_BYTES = 1024 * 1024
+MAX_INGEST_RECORDS = 100
 MAX_RECORD_LIMIT = 10_000
 MAX_WEARABLE_BYTES = 1024 * 1024 * 1024  # 1 GiB (Apple Health exports are huge)
 WEARABLE_MULTIPART_SLACK = 4 * 1024 * 1024
+INGEST_SOURCES = frozenset({"apple_health", "fitbit"})
+STAGE_KEYS = frozenset({"deep", "rem", "light", "awake"})
 ZIP_MAGICS = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
 # (deep+rem)/total-stage-minutes fraction → provisional quality 1–5.
 QUALITY_THRESHOLDS = ((0.35, 5), (0.28, 4), (0.20, 3), (0.12, 2))
@@ -165,13 +170,15 @@ def _unescape_csv_note(note):
 
 @app.before_request
 def relax_wearable_upload_limit():
-    """Allow up to ~1 GiB for /import/wearable only.
+    """Apply endpoint-specific request limits.
 
-    Every other route keeps the global 2 MiB MAX_CONTENT_LENGTH bound.
-    Werkzeug enforces this while parsing and spools multipart file parts to a
-    temp file (memory use stays bounded regardless of upload size).
+    JSON sync is capped at 1 MiB. Wearable multipart uploads allow ~1 GiB and
+    Werkzeug spools their file parts to a temp file. Every other route keeps
+    the global 2 MiB MAX_CONTENT_LENGTH bound.
     """
-    if request.endpoint == "import_wearable":
+    if request.endpoint == "api_ingest":
+        request.max_content_length = MAX_INGEST_BYTES
+    elif request.endpoint == "import_wearable":
         request.max_content_length = MAX_WEARABLE_BYTES + WEARABLE_MULTIPART_SLACK
 
 
@@ -311,95 +318,152 @@ def delete(record_id):
 def api_stats():
     return jsonify(get_stats())
 
-# ------------------------------------------------------------
-# JSON ingest endpoint for automated sync (Apple Shortcuts, etc.)
-# ------------------------------------------------------------
-@app.route('/api/ingest', methods=['POST'])
-def api_ingest():
-    # Ensure request is JSON
-    if not request.is_json:
-        return _json_error('Invalid content type, expected application/json')
 
-    # Enforce payload size limit (1 MiB)
-    max_bytes = 1024 * 1024
-    if request.content_length is not None and request.content_length > max_bytes:
-        return _json_error('Payload too large')
+def _sleep_interval_minutes(bedtime, wake):
+    bed_hour, bed_minute = (int(part) for part in bedtime.split(":"))
+    wake_hour, wake_minute = (int(part) for part in wake.split(":"))
+    return (
+        (wake_hour * 60 + wake_minute) - (bed_hour * 60 + bed_minute)
+    ) % (24 * 60)
 
-    try:
-        payload = request.get_json()
-    except Exception:
-        return _json_error('Malformed JSON')
 
-    # Normalize to list of records
-    records = payload if isinstance(payload, list) else [payload]
-    if len(records) > 100:
-        return _json_error('Too many records (max 100)')
+def _reject_json_constant(value):
+    raise ValueError(f"Invalid JSON number: {value}")
 
-    imported = replaced = skipped = 0
-    errors = []
-    accepted = []
 
-    for idx, rec in enumerate(records):
-        # Required fields check
-        missing = [k for k in ('date', 'bedtime', 'wake') if k not in rec]
-        if missing:
-            errors.append({"index": idx, "error": f"Missing field(s) {', '.join(missing)}"})
-            continue
+def _parse_ingest_record(record):
+    if not isinstance(record, dict):
+        return None, "Record must be a JSON object."
 
-        # Validate core fields using existing helper (returns parsed dict or None + error)
-        parsed, err = _parse_record_values(
-            rec['date'], rec['bedtime'], rec['wake'], rec.get('quality'), rec.get('notes', '')
+    missing = [
+        field
+        for field in ("date", "bedtime", "wake")
+        if field not in record or record[field] is None
+    ]
+    if missing:
+        return None, "Missing required field(s): " + ", ".join(missing) + "."
+
+    notes = record.get("notes", "")
+    if not isinstance(notes, str):
+        return None, "Notes must be a string."
+
+    source = record.get("source", "apple_health")
+    if not isinstance(source, str) or source not in INGEST_SOURCES:
+        return None, "Source must be apple_health or fitbit."
+
+    stages = record.get("stages")
+    if stages is not None:
+        if not isinstance(stages, dict) or set(stages) != STAGE_KEYS:
+            return (
+                None,
+                "Stages must contain exactly deep, rem, light, and awake.",
+            )
+        for name in ("deep", "rem", "light", "awake"):
+            value = stages[name]
+            if type(value) is not int or value < 0:
+                return None, f"Stage {name} must be a nonnegative integer."
+
+    quality = record.get("quality")
+    if quality is None:
+        quality = derive_quality(stages)
+    elif type(quality) is not int or not 1 <= quality <= 5:
+        return None, "Quality must be an integer from 1 to 5."
+
+    fields, error = _parse_record_values(
+        record["date"],
+        record["bedtime"],
+        record["wake"],
+        quality,
+        notes,
+    )
+    if error:
+        return None, error
+
+    if stages is not None:
+        interval_minutes = _sleep_interval_minutes(
+            fields["bedtime"], fields["wake"]
         )
-        if not parsed:
-            errors.append({"index": idx, "error": err})
-            continue
+        stage_minutes = sum(stages.values())
+        if abs(stage_minutes - interval_minutes) > 1:
+            return (
+                None,
+                f"Stage minutes total {stage_minutes}; expected "
+                f"{interval_minutes} for the sleep interval.",
+            )
 
-        source = rec.get('source') or 'apple_health'
-        stages = rec.get('stages')
-        efficiency = rec.get('efficiency')
-        quality = parsed.get('quality')
-        if not quality and stages:
-            try:
-                quality = derive_quality(stages)
-            except Exception as e:
-                errors.append({"index": idx, "error": f"Quality derivation failed: {e}"})
-                continue
+    efficiency = record.get("efficiency")
+    if efficiency is not None:
+        if (
+            type(efficiency) not in (int, float)
+            or (type(efficiency) is float and not math.isfinite(efficiency))
+            or not 0 <= efficiency <= 100
+        ):
+            return None, "Efficiency must be a finite number from 0 to 100."
+        efficiency = float(efficiency)
 
-        # Build a night dict matching the shape expected by ``upsert_wearable_records``.
-        record_dict = {
-            'date': parsed['date'],
-            'bedtime': parsed['bedtime'],
-            # The DB column is ``wake_time``, but the upsert helper expects the key ``wake``.
-            'wake': parsed['wake'],
-            'quality': int(quality) if quality else None,
-            'notes': parsed.get('notes', ''),
-            'source': source,
-            # Stage minutes – may be omitted (None) when not provided.
-            'deep_minutes': stages.get('deep') if stages else None,
-            'rem_minutes': stages.get('rem') if stages else None,
-            'light_minutes': stages.get('light') if stages else None,
-            'awake_minutes': stages.get('awake') if stages else None,
-            # Efficiency is a float between 0‑100 or ``None``.
-            'efficiency': float(efficiency) if efficiency is not None else None,
-        }
-        accepted.append(record_dict)
+    return {
+        **fields,
+        "source": source,
+        "stages": stages,
+        "efficiency": efficiency,
+    }, None
 
+
+@app.route("/api/ingest", methods=["POST"])
+def api_ingest():
+    if request.mimetype != "application/json":
+        return _json_error("Content-Type must be application/json.", 415)
+
+    # The per-route max_content_length set in before_request bounds streamed
+    # and chunked bodies as they are read, including requests with no
+    # Content-Length header.
+    raw = request.get_data(cache=False)
+    if len(raw) > MAX_INGEST_BYTES:
+        raise RequestEntityTooLarge()
+    try:
+        payload = json.loads(
+            raw,
+            parse_constant=_reject_json_constant,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return _json_error("Malformed JSON.")
+
+    if isinstance(payload, dict):
+        records = [payload]
+    elif isinstance(payload, list):
+        if not payload:
+            return _json_error("Payload array must not be empty.")
+        if len(payload) > MAX_INGEST_RECORDS:
+            return _json_error(
+                f"Payload may contain at most {MAX_INGEST_RECORDS} records."
+            )
+        records = payload
+    else:
+        return _json_error("Payload must be a JSON object or array.")
+
+    accepted = []
+    errors = []
+    for index, record in enumerate(records):
+        parsed, error = _parse_ingest_record(record)
+        if error:
+            errors.append({"index": index, "error": error})
+        else:
+            accepted.append(parsed)
+
+    imported = replaced = 0
     if accepted:
-        imp, rep = upsert_wearable_records(accepted)
-        imported += imp
-        replaced += rep
+        imported, replaced = upsert_wearable_records(accepted)
 
-    stats = get_stats()
-    resp = {
-        'ok': True,
-        'imported': imported,
-        'replaced': replaced,
-        'skipped': skipped,
-        'stats': stats,
+    body = {
+        "ok": bool(accepted),
+        "imported": imported,
+        "replaced": replaced,
+        "skipped": len(errors),
+        "stats": get_stats(),
     }
     if errors:
-        resp['errors'] = errors
-    return jsonify(resp)
+        body["errors"] = errors
+    return jsonify(body), (200 if accepted else 400)
 
 
 @app.route("/api/records")

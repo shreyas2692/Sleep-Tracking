@@ -1,3 +1,5 @@
+import json
+import math
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -35,13 +37,17 @@ _MIGRATION_COLUMNS = (
     ("light_minutes", "INTEGER"),
     ("awake_minutes", "INTEGER"),
     ("efficiency", "REAL"),
+    ("sessions_json", "TEXT"),
 )
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 _WEARABLE_IDENTITY_INDEX = "uq_sleep_records_wearable_identity"
+_MAX_SESSIONS_PER_RECORD = 512
+_MAX_SESSION_SECONDS = 36 * 60 * 60
 
 _RECORD_SELECT = (
     "id, date, bedtime, wake_time, quality, notes, "
-    "source, deep_minutes, rem_minutes, light_minutes, awake_minutes, efficiency"
+    "source, deep_minutes, rem_minutes, light_minutes, awake_minutes, efficiency, "
+    "sessions_json"
 )
 
 
@@ -147,6 +153,129 @@ def calc_sleep_hours(bedtime_str, wake_time_str):
         return 0
 
 
+def _wall_session(date_str, bedtime, wake_time):
+    """Build one offset-unknown session from the legacy public fields."""
+    try:
+        wake_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        bed_time = datetime.strptime(bedtime, "%H:%M").time()
+        end_time = datetime.strptime(wake_time, "%H:%M").time()
+    except (TypeError, ValueError):
+        return None
+
+    start = datetime.combine(wake_date, bed_time)
+    end = datetime.combine(wake_date, end_time)
+    if end < start:
+        start -= timedelta(days=1)
+    return {
+        "start_local": start.isoformat(timespec="seconds"),
+        "end_local": end.isoformat(timespec="seconds"),
+        "start_utc": None,
+        "end_utc": None,
+        "elapsed_seconds": int((end - start).total_seconds()),
+        "main": True,
+    }
+
+
+def _normalize_session(session):
+    """Validate and canonicalize one private session payload."""
+    if not isinstance(session, dict) or type(session.get("main")) is not bool:
+        raise ValueError("invalid sleep session")
+    try:
+        start = datetime.fromisoformat(session["start_local"])
+        end = datetime.fromisoformat(session["end_local"])
+        seconds = float(session["elapsed_seconds"])
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("invalid sleep session") from exc
+    if (
+        start.tzinfo is not None
+        or end.tzinfo is not None
+        or end <= start
+        or not math.isfinite(seconds)
+        or not 0 < seconds <= _MAX_SESSION_SECONDS
+    ):
+        raise ValueError("invalid sleep session")
+    rounded_seconds = int(round(seconds))
+    if rounded_seconds <= 0:
+        raise ValueError("invalid sleep session")
+
+    start_utc = session.get("start_utc")
+    end_utc = session.get("end_utc")
+    if (start_utc is None) != (end_utc is None):
+        raise ValueError("invalid sleep session")
+    if start_utc is not None:
+        if (
+            isinstance(start_utc, bool)
+            or isinstance(end_utc, bool)
+            or not isinstance(start_utc, (int, float))
+            or not isinstance(end_utc, (int, float))
+            or not math.isfinite(start_utc)
+            or not math.isfinite(end_utc)
+            or end_utc <= start_utc
+        ):
+            raise ValueError("invalid sleep session")
+        start_utc = int(round(start_utc))
+        end_utc = int(round(end_utc))
+
+    return {
+        "start_local": start.isoformat(timespec="seconds"),
+        "end_local": end.isoformat(timespec="seconds"),
+        "start_utc": start_utc,
+        "end_utc": end_utc,
+        "elapsed_seconds": rounded_seconds,
+        "main": session["main"],
+    }
+
+
+def _serialize_sessions(night):
+    """Serialize validated private importer sessions, or use legacy fallback."""
+    sessions = night.get("_sessions")
+    if sessions is None:
+        return None
+    if (
+        not isinstance(sessions, list)
+        or not sessions
+        or len(sessions) > _MAX_SESSIONS_PER_RECORD
+    ):
+        raise ValueError("invalid sleep sessions")
+    normalized = [_normalize_session(session) for session in sessions]
+    if sum(session["main"] for session in normalized) != 1:
+        raise ValueError("sleep sessions must contain exactly one main session")
+    return json.dumps(
+        {"v": 1, "sessions": normalized},
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _decode_sessions(date_str, bedtime, wake_time, payload):
+    """Decode private sessions, safely falling back for legacy/corrupt rows."""
+    if payload:
+        try:
+            document = json.loads(payload)
+            raw_sessions = document["sessions"]
+            if (
+                document.get("v") != 1
+                or not isinstance(raw_sessions, list)
+                or not raw_sessions
+                or len(raw_sessions) > _MAX_SESSIONS_PER_RECORD
+            ):
+                raise ValueError
+            sessions = [_normalize_session(session) for session in raw_sessions]
+            if sum(session["main"] for session in sessions) != 1:
+                raise ValueError
+            return sessions
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+            RecursionError,
+            json.JSONDecodeError,
+        ):
+            pass
+    fallback = _wall_session(date_str, bedtime, wake_time)
+    return [fallback] if fallback is not None else []
+
+
 def _row_to_dict(row):
     """Map a sleep_records row to the API record object (wake_time → wake).
 
@@ -156,7 +285,7 @@ def _row_to_dict(row):
     """
     (
         rec_id, date_str, bedtime, wake_time, quality, notes,
-        source, deep, rem, light, awake, efficiency,
+        source, deep, rem, light, awake, efficiency, sessions_json,
     ) = row
     if deep is None and rem is None and light is None and awake is None:
         stages = None
@@ -167,6 +296,16 @@ def _row_to_dict(row):
             "light": int(light or 0),
             "awake": int(awake or 0),
         }
+    sessions = _decode_sessions(date_str, bedtime, wake_time, sessions_json)
+    main_session = next(
+        (session for session in sessions if session["main"]),
+        None,
+    )
+    hours = (
+        round(main_session["elapsed_seconds"] / 3600, 2)
+        if main_session is not None
+        else calc_sleep_hours(bedtime, wake_time)
+    )
     return {
         "id": rec_id,
         "date": date_str,
@@ -174,7 +313,7 @@ def _row_to_dict(row):
         "wake": wake_time,
         "quality": quality,
         "notes": notes,
-        "hours": calc_sleep_hours(bedtime, wake_time),
+        "hours": hours,
         "source": source,
         "stages": stages,
         "efficiency": efficiency,
@@ -228,6 +367,8 @@ def upsert_wearable_records(nights):
 
     Each night dict: {date, bedtime, wake, quality, notes, source, stages,
     efficiency} where stages is {deep, rem, light, awake} minutes or None.
+    Parsers may also supply private `_sessions`; those are persisted but never
+    included in public record objects.
     """
     conn = get_connection()
     imported = replaced = 0
@@ -238,6 +379,7 @@ def upsert_wearable_records(nights):
         conn.execute("BEGIN IMMEDIATE")
         for night in nights:
             stages = night.get("stages") or {}
+            sessions_json = _serialize_sessions(night)
             values = (
                 night["bedtime"],
                 night["wake"],
@@ -248,6 +390,7 @@ def upsert_wearable_records(nights):
                 stages.get("light"),
                 stages.get("awake"),
                 night.get("efficiency"),
+                sessions_json,
             )
             row = conn.execute(
                 "SELECT id FROM sleep_records WHERE date = ? AND source = ? "
@@ -258,7 +401,8 @@ def upsert_wearable_records(nights):
                 conn.execute(
                     "UPDATE sleep_records SET bedtime = ?, wake_time = ?, "
                     "quality = ?, notes = ?, deep_minutes = ?, rem_minutes = ?, "
-                    "light_minutes = ?, awake_minutes = ?, efficiency = ? "
+                    "light_minutes = ?, awake_minutes = ?, efficiency = ?, "
+                    "sessions_json = ? "
                     "WHERE id = ?",
                     values + (row[0],),
                 )
@@ -273,8 +417,8 @@ def upsert_wearable_records(nights):
                 conn.execute(
                     "INSERT INTO sleep_records (date, bedtime, wake_time, "
                     "quality, notes, source, deep_minutes, rem_minutes, "
-                    "light_minutes, awake_minutes, efficiency) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "light_minutes, awake_minutes, efficiency, sessions_json) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (night["date"],) + values[:4] + (night["source"],) + values[4:],
                 )
                 imported += 1
@@ -291,7 +435,8 @@ def update_record(record_id, date_str, bedtime, wake_time, quality, notes=""):
     """Update an existing record. Returns False if the id is unknown."""
     conn = get_connection()
     cur = conn.execute(
-        "UPDATE sleep_records SET date = ?, bedtime = ?, wake_time = ?, quality = ?, notes = ? WHERE id = ?",
+        "UPDATE sleep_records SET date = ?, bedtime = ?, wake_time = ?, "
+        "quality = ?, notes = ?, sessions_json = NULL WHERE id = ?",
         (date_str, bedtime, wake_time, quality, notes, record_id),
     )
     conn.commit()
@@ -378,7 +523,114 @@ def _streaks(record_dates, today):
     return current, best
 
 
-def _sleep_debt(records, today):
+def _interval_components(sessions):
+    """Connected components of overlapping local-time session intervals."""
+    components = []
+    current = []
+    current_end = None
+    for session in sorted(sessions, key=lambda item: (item["start"], item["end"])):
+        if current and session["start"] >= current_end:
+            components.append(current)
+            current = []
+            current_end = None
+        current.append(session)
+        current_end = (
+            session["end"]
+            if current_end is None
+            else max(current_end, session["end"])
+        )
+    if current:
+        components.append(current)
+    return components
+
+
+def _merged_span_seconds(spans):
+    merged = []
+    for start, end in sorted(spans):
+        if merged and start < merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return sum(end - start for start, end in merged)
+
+
+def _source_component_seconds(sessions):
+    """Covered seconds for one source without counting its duplicate spans."""
+    overlap_groups = _interval_components(sessions)
+    total = 0
+    for group in overlap_groups:
+        if len(group) == 1:
+            total += group[0]["elapsed_seconds"]
+        elif all(
+            session["start_utc"] is not None and session["end_utc"] is not None
+            for session in group
+        ):
+            total += _merged_span_seconds(
+                (session["start_utc"], session["end_utc"])
+                for session in group
+            )
+        else:
+            epoch = datetime(1970, 1, 1)
+            total += _merged_span_seconds(
+                (
+                    (session["start"] - epoch).total_seconds(),
+                    (session["end"] - epoch).total_seconds(),
+                )
+                for session in group
+            )
+    return total
+
+
+def _accounted_hours_by_date(rows, today):
+    """Deduplicate overlapping cross-source sessions and retain disjoint naps."""
+    window_start = today - timedelta(days=13)
+    sessions_by_date = {}
+    for row in rows:
+        date_str, bedtime, wake_time, source, sessions_json = (
+            row[1], row[2], row[3], row[6], row[12]
+        )
+        try:
+            record_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            continue
+        if not window_start <= record_date <= today:
+            continue
+        sessions_by_date.setdefault(date_str, [])
+        for session in _decode_sessions(
+            date_str, bedtime, wake_time, sessions_json
+        ):
+            if session["elapsed_seconds"] <= 0:
+                continue
+            try:
+                start = datetime.fromisoformat(session["start_local"])
+                end = datetime.fromisoformat(session["end_local"])
+            except (TypeError, ValueError):
+                continue
+            sessions_by_date.setdefault(date_str, []).append({
+                "start": start,
+                "end": end,
+                "start_utc": session["start_utc"],
+                "end_utc": session["end_utc"],
+                "elapsed_seconds": session["elapsed_seconds"],
+                "source": source,
+            })
+
+    result = {}
+    for date_str, sessions in sessions_by_date.items():
+        accounted_seconds = 0
+        for component in _interval_components(sessions):
+            by_source = {}
+            for session in component:
+                by_source.setdefault(session["source"], []).append(session)
+            accounted_seconds += max(
+                _source_component_seconds(source_sessions)
+                for source_sessions in by_source.values()
+            )
+        result[date_str] = accounted_seconds / 3600
+    return result
+
+
+def _sleep_debt(rows, today):
     """Rolling 14-day sleep debt vs. personal need.
 
     Accounting choices (kept deliberately simple and transparent):
@@ -388,10 +640,9 @@ def _sleep_debt(records, today):
     - Each day's debt = need − hours slept that date. Days with no record are
       SKIPPED — a missing day contributes 0 debt rather than a full night of
       debt, because an unlogged night is not evidence of no sleep.
-    - Nap-inclusive: multiple 'manual' records on one date (naps) SUM their
-      hours. Each wearable source counts once per date (its max-hours record).
-      When several sources cover the same date, the max per-source total wins,
-      so the same night reported by two devices is never double-counted.
+    - Nap-inclusive: disjoint sessions on a date sum. Overlapping sessions form
+      a component, and only the largest per-source coverage in that component
+      counts, so duplicate device readings are not double-counted.
     - Oversleeping produces negative debt for that day and reduces the total.
     """
     raw_need = get_setting("sleep_goal", "")
@@ -402,24 +653,7 @@ def _sleep_debt(records, today):
     if not (0 < need <= 24):
         need = 8.0
 
-    window_start = today - timedelta(days=13)
-    per_source = {}
-    for r in records:
-        try:
-            record_date = datetime.strptime(r["date"], "%Y-%m-%d").date()
-        except (ValueError, TypeError):
-            continue
-        if not window_start <= record_date <= today:
-            continue
-        key = (r["date"], r["source"])
-        if r["source"] == "manual":
-            per_source[key] = per_source.get(key, 0) + r["hours"]
-        else:
-            per_source[key] = max(per_source.get(key, 0), r["hours"])
-
-    hours_by_date = {}
-    for (date_str, _source), hours in per_source.items():
-        hours_by_date[date_str] = max(hours_by_date.get(date_str, 0), hours)
+    hours_by_date = _accounted_hours_by_date(rows, today)
 
     rolling = []
     total = 0.0
@@ -483,7 +717,7 @@ def get_stats():
         "current_streak": current_streak,
         "best_streak": best_streak,
         "series": series,
-        "sleep_debt": _sleep_debt(records, today),
+        "sleep_debt": _sleep_debt(rows, today),
     }
 
 

@@ -14,12 +14,12 @@ services:
       - key: SLEEP_PASSWORD
         sync: false
       - key: SLEEP_DB_PATH
-        value: /var/data/sleep.db
+        value: /data/sleep.db
       - key: SLEEP_TIMEZONE
         value: America/New_York
       - key: SESSION_COOKIE_SECURE
         value: "1"
     disk:
       name: sleep-data
-      mountPath: /var/data
+      mountPath: /data
       sizeGB: 1

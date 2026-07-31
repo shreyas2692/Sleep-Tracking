@@ -361,6 +361,11 @@ def test_index_page(client):
     assert 'id="import-file"' in html
     assert 'id="load-more"' in html
     assert 'id="sleep-goal"' in html
+    assert 'id="patterns"' in html
+    assert 'id="pattern-year"' in html
+    assert 'id="heatmap"' in html
+    assert 'id="month-a"' in html
+    assert 'id="season-a"' in html
 
 
 def test_healthz_is_public_when_auth_enabled(client, monkeypatch):

@@ -106,6 +106,7 @@ the max per-source total once; oversleep is negative debt).
   Fitbit Takeout JSON/zip, sniffed; 1 GiB cap; dedup identity (date, source),
   re-import UPDATEs in place; future nights skipped not rejected →
   `{ok, imported, replaced, skipped, records, stats}`; 400 `{error}`
+- `POST /api/ingest` — one JSON night or array of at most 100 (1 MiB); Apple/Fitbit `(date, source)` upsert → `{ok, imported, replaced, skipped, stats, errors?}`
 - `GET /api/series?range=30d|90d|1y|all` (default 30d) → `{range, nights:
   [{date, hours, quality, stages, source}] ascending (only dates having
   records, latest per date), start, end}`; invalid range → 400
