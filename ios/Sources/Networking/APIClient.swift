@@ -81,6 +81,10 @@ struct APIClient {
         try await get("/api/insights")
     }
 
+    func aiSummary() async throws -> AISummary {
+        try await get("/api/summary")
+    }
+
     /// Lightweight connectivity probe; returns the stats it fetched.
     func testConnection() async throws -> Stats {
         try await stats()

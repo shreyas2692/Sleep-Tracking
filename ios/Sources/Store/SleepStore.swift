@@ -28,6 +28,7 @@ final class SleepStore: ObservableObject {
     @Published private(set) var stats: Stats?
     @Published private(set) var series30: SeriesResponse?
     @Published private(set) var insights: InsightsResponse?
+    @Published private(set) var aiSummary: AISummary?
     @Published private(set) var seriesByRange: [SeriesRange: SeriesResponse] = [:]
     @Published private(set) var loadState: LoadState = .idle
     @Published private(set) var hasCachedData = false
@@ -93,6 +94,13 @@ final class SleepStore: ObservableObject {
             }
             self.loadState = .loaded
             persistCache()
+            // Claude summary can take seconds server-side — fetch after the
+            // main refresh so it never delays the dashboard.
+            Task {
+                if let summary = try? await self.client.aiSummary() {
+                    self.aiSummary = summary
+                }
+            }
         } catch {
             loadState = .failed((error as? APIError)?.errorDescription ?? error.localizedDescription)
         }

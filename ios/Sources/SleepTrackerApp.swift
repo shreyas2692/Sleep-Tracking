@@ -96,8 +96,17 @@ struct RootTabView: View {
             #if DEBUG
             if usePreviewFixtures { return }
             #endif
+            // First run with no saved credentials: show sign-in right away
+            // instead of blocking on a (possibly cold-starting) server.
+            // Small delay so the presentation isn't dropped while the tab
+            // view is still appearing.
+            if !UserDefaults.standard.bool(forKey: Self.setupShownKey),
+               !store.config.hasCredentials {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                showSetup = true
+            }
             await store.refresh()
-            // First launch, missing password, or hard connection failure → setup sheet.
+            // Missing password or hard connection failure → setup sheet.
             let needsSetup = !UserDefaults.standard.bool(forKey: Self.setupShownKey)
                 || !store.config.hasCredentials
                 || store.loadState.errorMessage != nil

@@ -6,6 +6,7 @@ import Charts
 /// derived from the full /api/insights payload.
 struct InsightsSection: View {
     let insights: InsightsResponse?
+    var summary: String?
 
     private var nudges: [Nudge] {
         guard let insights else { return [] }
@@ -22,6 +23,9 @@ struct InsightsSection: View {
                 if nudges.isEmpty {
                     unlockCard
                 } else {
+                    if let summary, !summary.isEmpty {
+                        AISummaryCard(text: summary)
+                    }
                     VStack(spacing: 10) {
                         ForEach(nudges) { nudge in
                             NudgeRow(nudge: nudge)
@@ -45,6 +49,24 @@ struct InsightsSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 14)
+    }
+}
+
+/// Claude-written weekly narrative (only when the server has it enabled).
+struct AISummaryCard: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("This Week · Written by Claude").microLabel()
+            Text(text)
+                .font(.system(.subheadline, design: .serif))
+                .foregroundStyle(Color.appInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityElement(children: .combine)
     }
 }
 

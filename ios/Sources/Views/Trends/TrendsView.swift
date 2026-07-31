@@ -54,7 +54,7 @@ struct TrendsView: View {
         if let series {
             summaryRow(series)
             TrendChartCard(series: series, range: range)
-            InsightsSection(insights: store.insights)
+            InsightsSection(insights: store.insights, summary: store.aiSummary?.summary)
         } else if isLoading {
             VStack(spacing: 12) {
                 ProgressView()

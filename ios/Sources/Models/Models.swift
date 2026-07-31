@@ -158,6 +158,13 @@ struct InsightsResponse: Codable, Equatable {
     }
 }
 
+// MARK: - /api/summary (Claude-written weekly narrative; optional server feature)
+
+struct AISummary: Codable, Equatable {
+    let available: Bool
+    let summary: String?
+}
+
 // MARK: - /api/series
 
 enum SeriesRange: String, CaseIterable, Identifiable {
