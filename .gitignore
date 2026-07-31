@@ -1,13 +1,21 @@
-__pycache__/
-.pytest_cache/
-*.py[cod]
-*.db
+# Secrets
 .env
+.env.*
+
+# Python
+__pycache__/
+*.pyc
 .venv/
-node_modules/
-.claude/
-.DS_Store
-.coverage
-htmlcov/
-fleet/
+.pytest_cache/
+
+# Data
+*.db
+*.sqlite3
+
+# Tooling output
 graphify-out/
+ios/DerivedData/
+ios/*.xcodeproj
+
+# OS
+.DS_Store

@@ -1,11 +1,12 @@
 import csv
+import hashlib
 import hmac
 import io
 import json
 import math
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlsplit
 
 from flask import (
@@ -16,6 +17,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -35,6 +37,7 @@ from database import (
     get_monthly_trend,
     get_records,
     get_series,
+    get_setting,
     get_stats,
     get_streak,
     get_today,
@@ -43,6 +46,7 @@ from database import (
     update_record,
     upsert_wearable_records,
 )
+from ai_summary import generate_summary, summary_available
 from importers import parse_apple_health, parse_fitbit_takeout
 
 MAX_NOTES_LEN = 500
@@ -78,7 +82,12 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=_env_truthy("SESSION_COOKIE_SECURE"),
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
+
+# Reachable without credentials: health probe, the login flow itself (a
+# stale session must still be able to log out), and static assets.
+AUTH_EXEMPT_ENDPOINTS = frozenset({"healthz", "login", "logout", "static"})
 
 
 def _is_ajax():
@@ -182,26 +191,67 @@ def relax_wearable_upload_limit():
         request.max_content_length = MAX_WEARABLE_BYTES + WEARABLE_MULTIPART_SLACK
 
 
+def _credentials_match(username, password):
+    """Constant-time check against SLEEP_USERNAME/SLEEP_PASSWORD.
+
+    Compares UTF-8 bytes: hmac.compare_digest raises on non-ASCII str, and
+    login form input is arbitrary user text.
+    """
+    expected_user = os.environ.get("SLEEP_USERNAME", "sleep")
+    expected_pass = os.environ.get("SLEEP_PASSWORD", "")
+    user_ok = hmac.compare_digest(
+        str(username or "").encode("utf-8"), expected_user.encode("utf-8")
+    )
+    pass_ok = hmac.compare_digest(
+        str(password or "").encode("utf-8"), expected_pass.encode("utf-8")
+    )
+    return user_ok and pass_ok
+
+
+def _basic_auth_ok():
+    auth = request.authorization
+    return auth is not None and _credentials_match(auth.username, auth.password)
+
+
+def _safe_next_target(value):
+    """Return value only if it is a same-site path; otherwise "/".
+
+    Rejects protocol-relative ("//host"), scheme-carrying, and
+    backslash-tricked targets so /login cannot open-redirect.
+    """
+    value = str(value or "")
+    if not value.startswith("/") or value.startswith("//") or "\\" in value:
+        return "/"
+    parts = urlsplit(value)
+    if parts.scheme or parts.netloc:
+        return "/"
+    return value
+
+
 @app.before_request
 def protect_private_routes():
     if request.endpoint == "healthz":
         return None
 
     password = os.environ.get("SLEEP_PASSWORD", "")
-    if password:
-        auth = request.authorization
-        username = os.environ.get("SLEEP_USERNAME", "sleep")
-        if (
-            auth is None
-            or not hmac.compare_digest(auth.username or "", username)
-            or not hmac.compare_digest(auth.password or "", password)
+    if (
+        password
+        and request.endpoint not in AUTH_EXEMPT_ENDPOINTS
+        and not session.get("authed")
+        and not _basic_auth_ok()
+    ):
+        # Browser navigations get the branded login page; API clients
+        # (curl, Shortcuts, the iOS app) keep the Basic challenge.
+        if request.method == "GET" and "text/html" in request.headers.get(
+            "Accept", ""
         ):
-            return Response(
-                "Authentication required.\n",
-                401,
-                {"WWW-Authenticate": 'Basic realm="Sleep Tracker", charset="UTF-8"'},
-                mimetype="text/plain",
-            )
+            return redirect(url_for("login", next=request.path))
+        return Response(
+            "Authentication required.\n",
+            401,
+            {"WWW-Authenticate": 'Basic realm="Sleep Tracker", charset="UTF-8"'},
+            mimetype="text/plain",
+        )
 
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         fetch_site = request.headers.get("Sec-Fetch-Site", "").lower()
@@ -252,6 +302,44 @@ def healthz():
     except Exception:
         return jsonify(ok=False), 503
     return jsonify(ok=True)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if not os.environ.get("SLEEP_PASSWORD", "") or session.get("authed"):
+        return redirect(url_for("index"))
+
+    next_target = _safe_next_target(
+        request.form.get("next") or request.args.get("next")
+    )
+    if request.method == "POST":
+        if _credentials_match(
+            request.form.get("username"), request.form.get("password")
+        ):
+            session.clear()
+            session["authed"] = True
+            session.permanent = True
+            return redirect(next_target)
+        return (
+            render_template(
+                "login.html",
+                error="Wrong username or password.",
+                next_target=next_target,
+            ),
+            401,
+        )
+    return render_template("login.html", error=None, next_target=next_target)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+@app.context_processor
+def inject_auth_state():
+    return {"session_authed": bool(session.get("authed"))}
 
 
 @app.route("/")
@@ -490,6 +578,47 @@ def api_insights():
             "monthly": get_monthly_trend(6),
         }
     )
+
+
+@app.route("/api/summary")
+def api_summary():
+    """Claude-written weekly narrative. Cached until data changes or a new day."""
+    if not summary_available():
+        return jsonify({"available": False, "summary": None})
+
+    stats = get_stats()
+    if stats["total"] < 7:
+        return jsonify({"available": True, "summary": None, "reason": "not_enough_data"})
+
+    digest = {
+        "today": str(get_today()),
+        "total_nights": stats["total"],
+        "avg_hours": stats["avg_hours"],
+        "avg_quality": stats["avg_quality"],
+        "current_streak": stats["current_streak"],
+        "sleep_debt": stats.get("sleep_debt"),
+        "consistency_0_100": get_consistency_score(),
+        "weekly_averages": get_weekly_averages(12),
+        "day_of_week": get_day_of_week_stats(),
+    }
+    digest_json = json.dumps(digest, sort_keys=True)
+    fingerprint = f"{str(get_today())}:{hashlib.sha256(digest_json.encode()).hexdigest()[:16]}"
+
+    if get_setting("ai_summary_fingerprint", "") == fingerprint:
+        cached = get_setting("ai_summary_text", "")
+        if cached:
+            return jsonify({"available": True, "summary": cached, "cached": True})
+
+    try:
+        summary = generate_summary(digest_json)
+    except Exception as exc:  # network / auth / rate limit
+        return jsonify({"available": True, "summary": None, "error": str(exc)}), 502
+    if not summary:
+        return jsonify({"available": True, "summary": None, "reason": "declined"}), 502
+
+    set_setting("ai_summary_text", summary)
+    set_setting("ai_summary_fingerprint", fingerprint)
+    return jsonify({"available": True, "summary": summary, "cached": False})
 
 
 @app.route("/api/export")

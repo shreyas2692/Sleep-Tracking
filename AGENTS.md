@@ -116,12 +116,22 @@ the max per-source total once; oversleep is negative debt).
 - `GET /api/export` — all records as JSON
 - `GET /export.csv` — CSV download of all records
 - `GET /healthz` — public database readiness check → `{ok}`
+- `GET|POST /login` — public branded sign-in page; POST fields `username,
+  password, next` (same-site paths only); success sets a session cookie and
+  redirects, failure re-renders with 401; redirects to `/` when
+  `SLEEP_PASSWORD` is unset or already signed in
+- `POST /logout` — public; clears the session and redirects to `/login`
 - `POST /settings/update` — validate and save sleep/bedtime goals, then redirect
 - `POST /settings/clear` — delete all records, then redirect
 
-When `SLEEP_PASSWORD` is set, every route except `/healthz` requires HTTP Basic
-authentication (`SLEEP_USERNAME`, default `sleep`). Browser cross-site mutation
-requests are rejected.
+When `SLEEP_PASSWORD` is set, browsers sign in through the session login page:
+unauthenticated GET navigations whose `Accept` header contains `text/html` are
+302-redirected to `/login`, and a successful login sets a 30-day session
+cookie. HTTP Basic credentials (`SLEEP_USERNAME`, default `sleep`) are still
+accepted on every route for API clients (curl, Apple Shortcuts, the iOS app);
+any other unauthenticated request gets `401` with a `WWW-Authenticate: Basic`
+challenge. `/healthz`, `/login`, `/logout`, and static assets stay public.
+Browser cross-site mutation requests are rejected.
 
 ## Conventions
 

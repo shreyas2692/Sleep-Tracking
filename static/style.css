@@ -159,6 +159,7 @@ h2 { font-size: 1.125rem; }
 
 .header-actions { display: flex; align-items: center; gap: 8px; }
 .header-actions form { margin: 0; }
+.signout-form { margin: 0; display: inline-flex; }
 
 /* ---------- buttons ---------- */
 

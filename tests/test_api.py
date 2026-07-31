@@ -385,6 +385,80 @@ def test_basic_auth_protects_private_routes(client, monkeypatch):
     assert allowed.status_code == 200
 
 
+# ── session login ──────────────────────────────────────────────
+
+HTML_ACCEPT = {"Accept": "text/html,application/xhtml+xml"}
+
+
+def test_login_page_renders_without_credentials(client, monkeypatch):
+    monkeypatch.setenv("SLEEP_PASSWORD", "secret")
+    resp = client.get("/login")
+    assert resp.status_code == 200
+    assert "Sign in to your sleep log" in resp.get_data(as_text=True)
+
+
+def test_browser_navigation_redirects_to_login(client, monkeypatch):
+    monkeypatch.setenv("SLEEP_PASSWORD", "secret")
+    resp = client.get("/", headers=HTML_ACCEPT)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith("/login")
+
+
+def test_bare_get_without_accept_still_gets_basic_challenge(client, monkeypatch):
+    monkeypatch.setenv("SLEEP_PASSWORD", "secret")
+    resp = client.get("/")
+    assert resp.status_code == 401
+    assert resp.headers["WWW-Authenticate"].startswith("Basic")
+
+
+def test_login_success_establishes_session(client, monkeypatch):
+    monkeypatch.setenv("SLEEP_PASSWORD", "secret")
+    resp = client.post(
+        "/login", data={"username": "sleep", "password": "secret"}
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/"
+    assert client.get("/", headers=HTML_ACCEPT).status_code == 200
+
+
+def test_login_wrong_credentials_shows_error(client, monkeypatch):
+    monkeypatch.setenv("SLEEP_PASSWORD", "secret")
+    resp = client.post(
+        "/login", data={"username": "sleep", "password": "nope"}
+    )
+    assert resp.status_code == 401
+    assert "Wrong username or password." in resp.get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    "target", ["https://evil.example", "//evil.example"]
+)
+def test_login_next_param_rejects_open_redirects(client, monkeypatch, target):
+    monkeypatch.setenv("SLEEP_PASSWORD", "secret")
+    resp = client.post(
+        "/login",
+        data={"username": "sleep", "password": "secret", "next": target},
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/"
+
+
+def test_logout_clears_session(client, monkeypatch):
+    monkeypatch.setenv("SLEEP_PASSWORD", "secret")
+    client.post("/login", data={"username": "sleep", "password": "secret"})
+    resp = client.post("/logout")
+    assert resp.status_code == 302
+    denied = client.get("/", headers=HTML_ACCEPT)
+    assert denied.status_code == 302
+    assert denied.headers["Location"].startswith("/login")
+
+
+def test_login_redirects_home_when_auth_disabled(client):
+    resp = client.get("/login")
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/"
+
+
 @pytest.mark.parametrize(
     "headers",
     [

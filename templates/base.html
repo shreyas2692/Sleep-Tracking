@@ -46,6 +46,11 @@
       <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
       <div class="topbar-spacer"></div>
       <span class="topbar-date">{{ today | default('', true) }}</span>
+      {% if session_authed %}
+      <form method="post" action="/logout" class="signout-form">
+        <button class="btn btn-ghost btn-small" type="submit">Sign out</button>
+      </form>
+      {% endif %}
     </header>
 
     <!-- Flash messages -->

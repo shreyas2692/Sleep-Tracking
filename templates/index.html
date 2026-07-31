@@ -34,6 +34,11 @@
         <button id="import-btn" class="btn btn-ghost" type="button">Import CSV</button>
       </form>
       <a class="btn btn-ghost" href="/export.csv">Export CSV</a>
+      {% if session_authed %}
+      <form method="post" action="/logout">
+        <button class="btn btn-ghost" type="submit">Sign out</button>
+      </form>
+      {% endif %}
       <button id="theme-toggle" class="btn btn-ghost btn-icon" type="button"
               aria-label="Switch color theme">
         <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
