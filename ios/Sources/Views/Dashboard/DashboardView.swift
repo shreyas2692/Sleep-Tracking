@@ -29,6 +29,9 @@ struct DashboardView: View {
                         if let debt = stats.sleepDebt {
                             SleepDebtCard(debt: debt)
                         }
+                        if let nudge = topNudge {
+                            NudgeCard(nudge: nudge)
+                        }
                         ThirtyDayChartCard(series: store.series30)
                     } else {
                         stateBody
@@ -44,6 +47,11 @@ struct DashboardView: View {
             }
             .refreshable { await store.refresh() }
         }
+    }
+
+    private var topNudge: Nudge? {
+        guard let insights = store.insights else { return nil }
+        return InsightEngine.nudges(from: insights).first
     }
 
     private var header: some View {
@@ -137,6 +145,31 @@ struct StatCard: View {
                 .foregroundStyle(Color.appMuted)
         }
         .card(padding: 14)
+    }
+}
+
+// MARK: - Insight nudge card (one calm observation, never a score)
+
+struct NudgeCard: View {
+    let nudge: Nudge
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: nudge.icon)
+                .font(.title3)
+                .foregroundStyle(Color.chartBarStrong)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Noticed").microLabel()
+                Text(nudge.text)
+                    .font(.system(.subheadline, design: .serif))
+                    .foregroundStyle(Color.appInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .card()
+        .accessibilityElement(children: .combine)
     }
 }
 

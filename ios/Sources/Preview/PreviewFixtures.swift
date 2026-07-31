@@ -117,6 +117,41 @@ enum PreviewFixtures {
         )
     }
 
+    /// Sunday-deficit + steady rhythm so previews/screenshots show nudges.
+    static var insights: InsightsResponse {
+        var weekly: [WeeklyAverage] = []
+        for i in 0..<12 {
+            let label: String
+            if i == 11 {
+                label = "This week"
+            } else if i == 10 {
+                label = "Last week"
+            } else {
+                label = "Wk \(i)"
+            }
+            let hours: Double = 6.9 + Double(i) * 0.06
+            weekly.append(
+                WeeklyAverage(label: label, avgHours: hours, avgQuality: 3.6, count: i == 2 ? 0 : 6)
+            )
+        }
+        let dayHours: [(String, Double)] = [
+            ("Mon", 7.6), ("Tue", 7.5), ("Wed", 7.4), ("Thu", 7.5),
+            ("Fri", 7.2), ("Sat", 7.8), ("Sun", 6.6),
+        ]
+        let dayOfWeek: [DayOfWeekStat] = dayHours.map { pair in
+            DayOfWeekStat(day: pair.0, avgHours: pair.1, avgQuality: 3.8, count: 11)
+        }
+        return InsightsResponse(
+            stats: stats,
+            streak: stats.currentStreak,
+            consistency: 78,
+            weekly: weekly,
+            dayOfWeek: dayOfWeek,
+            bestWorst: BestWorstNights(best: Array(records.prefix(5)), worst: []),
+            monthly: []
+        )
+    }
+
     static var series1y: SeriesResponse {
         let cal = Calendar.current
         let end = Date()
@@ -157,7 +192,8 @@ extension SleepStore {
                 .d30: PreviewFixtures.series30,
                 .y1: PreviewFixtures.series1y,
             ],
-            loadState: .loaded
+            loadState: .loaded,
+            insights: PreviewFixtures.insights
         )
         return store
     }

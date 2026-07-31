@@ -27,6 +27,7 @@ final class SleepStore: ObservableObject {
     @Published private(set) var records: [SleepRecord] = []
     @Published private(set) var stats: Stats?
     @Published private(set) var series30: SeriesResponse?
+    @Published private(set) var insights: InsightsResponse?
     @Published private(set) var seriesByRange: [SeriesRange: SeriesResponse] = [:]
     @Published private(set) var loadState: LoadState = .idle
     @Published private(set) var hasCachedData = false
@@ -45,16 +46,29 @@ final class SleepStore: ObservableObject {
 
     init() {
         if let data = UserDefaults.standard.data(forKey: Self.configKey),
-           let saved = try? JSONDecoder().decode(ServerConfig.self, from: data) {
-            config = saved
+           var saved = try? JSONDecoder().decode(ServerConfig.self, from: data) {
+            if saved.password.isEmpty {
+                saved.password = KeychainStore.getPassword() ?? ""
+                config = saved
+            } else {
+                // Legacy install: password still in UserDefaults — move it
+                // to the Keychain and rewrite the sanitized blob.
+                config = saved
+                saveConfig()
+            }
         } else {
             config = ServerConfig()
         }
         loadCache()
     }
 
+    /// The password lives in the Keychain; UserDefaults only ever holds
+    /// a copy of the config with the password blanked.
     private func saveConfig() {
-        if let data = try? JSONEncoder().encode(config) {
+        KeychainStore.setPassword(config.password)
+        var sanitized = config
+        sanitized.password = ""
+        if let data = try? JSONEncoder().encode(sanitized) {
             UserDefaults.standard.set(data, forKey: Self.configKey)
         }
     }
@@ -67,11 +81,16 @@ final class SleepStore: ObservableObject {
             async let recordsTask = client.records()
             async let statsTask = client.stats()
             async let seriesTask = client.series(range: .d30)
+            // Insights are additive: a failure here never fails the refresh.
+            async let insightsTask = client.insights()
             let (records, stats, series) = try await (recordsTask, statsTask, seriesTask)
             self.records = records
             self.stats = stats
             self.series30 = series
             self.seriesByRange[.d30] = series
+            if let insights = try? await insightsTask {
+                self.insights = insights
+            }
             self.loadState = .loaded
             persistCache()
         } catch {
@@ -100,6 +119,15 @@ final class SleepStore: ObservableObject {
         stats = response.stats
         persistCache()
         Task { await loadSeries(range: .d30) }
+        Task { await refreshInsights() }
+    }
+
+    private func refreshInsights() async {
+        // Best-effort: nudges just keep their last value if this fails.
+        if let fresh = try? await client.insights() {
+            insights = fresh
+            persistCache()
+        }
     }
 
     func addNight(_ fields: APIClient.NightFields) async throws {
@@ -161,6 +189,9 @@ final class SleepStore: ObservableObject {
         if let url = cacheURL("series-30d.json"), let series30, let data = try? encoder.encode(series30) {
             try? data.write(to: url, options: .atomic)
         }
+        if let url = cacheURL("insights.json"), let insights, let data = try? encoder.encode(insights) {
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     private func loadCache() {
@@ -182,6 +213,11 @@ final class SleepStore: ObservableObject {
             series30 = cached
             seriesByRange[.d30] = cached
         }
+        if let url = cacheURL("insights.json"),
+           let data = try? Data(contentsOf: url),
+           let cached = try? decoder.decode(InsightsResponse.self, from: data) {
+            insights = cached
+        }
     }
 
     #if DEBUG
@@ -190,13 +226,15 @@ final class SleepStore: ObservableObject {
         records: [SleepRecord],
         stats: Stats?,
         seriesByRange: [SeriesRange: SeriesResponse],
-        loadState: LoadState
+        loadState: LoadState,
+        insights: InsightsResponse? = nil
     ) {
         self.records = records
         self.stats = stats
         self.seriesByRange = seriesByRange
         self.series30 = seriesByRange[.d30]
         self.loadState = loadState
+        self.insights = insights
         self.hasCachedData = !records.isEmpty || stats != nil
     }
     #endif

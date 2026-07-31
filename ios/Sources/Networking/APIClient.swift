@@ -77,6 +77,10 @@ struct APIClient {
         try await get("/api/series?range=\(range.rawValue)")
     }
 
+    func insights() async throws -> InsightsResponse {
+        try await get("/api/insights")
+    }
+
     /// Lightweight connectivity probe; returns the stats it fetched.
     func testConnection() async throws -> Stats {
         try await stats()

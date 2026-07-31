@@ -21,6 +21,7 @@
 		B4CAAED27E8C89EA849EE306 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A1BF1003FC3BB28BEEA1960 /* Models.swift */; };
 		B758F933A2BCD6EEF74B76AF /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 971157D027267943C454009C /* HealthKitService.swift */; };
 		B8767FAB5467BA1BBBCEBF34 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69AC85F01F6A7C646A978D5E /* Theme.swift */; };
+		BDF2AD8BC15D260910683C78 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAC3CBBA2ADC3D75E40E9C0 /* KeychainStore.swift */; };
 		C0E5434608E7C4F6904D946C /* PreviewFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9AFEB5829B09DBCF25EB4E /* PreviewFixtures.swift */; };
 		DA423A644148C94A86F17213 /* InsightEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5580F6AC99DA5DC157BB3A92 /* InsightEngine.swift */; };
 		DAF3B67051560CF1E43ED538 /* NightDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7903BFE2ED6678B70A5B10A0 /* NightDetailView.swift */; };
@@ -46,6 +47,7 @@
 		1532180C06256BEC3E7E912D /* SleepTrackerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SleepTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		15BE25A815630C814D81E68A /* SleepTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTrackerApp.swift; sourceTree = "<group>"; };
 		3285AF20F99A5C535801BBDA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		3DAC3CBBA2ADC3D75E40E9C0 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		4C9AFEB5829B09DBCF25EB4E /* PreviewFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewFixtures.swift; sourceTree = "<group>"; };
 		5580F6AC99DA5DC157BB3A92 /* InsightEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightEngine.swift; sourceTree = "<group>"; };
 		5E4DCAAF9680A6E4957065B0 /* InsightsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsSection.swift; sourceTree = "<group>"; };
@@ -154,6 +156,7 @@
 		A8BD70A2D928A482FBDC1DDC /* Store */ = {
 			isa = PBXGroup;
 			children = (
+				3DAC3CBBA2ADC3D75E40E9C0 /* KeychainStore.swift */,
 				0DEE67C0AE7E7876D64647B9 /* SleepStore.swift */,
 			);
 			path = Store;
@@ -328,6 +331,7 @@
 				B758F933A2BCD6EEF74B76AF /* HealthKitService.swift in Sources */,
 				DA423A644148C94A86F17213 /* InsightEngine.swift in Sources */,
 				1C9AB30ACDB3633EB8038E10 /* InsightsSection.swift in Sources */,
+				BDF2AD8BC15D260910683C78 /* KeychainStore.swift in Sources */,
 				B4CAAED27E8C89EA849EE306 /* Models.swift in Sources */,
 				E0DCA98B4F730AD3725701D8 /* NightClustering.swift in Sources */,
 				DAF3B67051560CF1E43ED538 /* NightDetailView.swift in Sources */,

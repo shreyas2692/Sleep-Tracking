@@ -88,6 +88,76 @@ struct Stats: Codable, Equatable {
     }
 }
 
+// MARK: - /api/insights
+
+struct WeeklyAverage: Codable, Equatable {
+    let label: String
+    let avgHours: Double
+    let avgQuality: Double
+    let count: Int
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case avgHours = "avg_hours"
+        case avgQuality = "avg_quality"
+        case count
+    }
+}
+
+struct DayOfWeekStat: Codable, Equatable {
+    let day: String
+    let avgHours: Double
+    let avgQuality: Double
+    let count: Int
+
+    enum CodingKeys: String, CodingKey {
+        case day
+        case avgHours = "avg_hours"
+        case avgQuality = "avg_quality"
+        case count
+    }
+}
+
+struct MonthlyTrendPoint: Codable, Equatable {
+    let label: String
+    let avgHours: Double
+    let count: Int
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case avgHours = "avg_hours"
+        case count
+    }
+}
+
+struct BestWorstNights: Codable, Equatable {
+    let best: [SleepRecord]
+    let worst: [SleepRecord]
+}
+
+/// Full payload of GET /api/insights. `weekly` is oldest-first with 12
+/// buckets; `count == 0` buckets are gaps, not zero-hour weeks.
+/// `consistency` is 0–100 where 0 means "not enough data", not "poor".
+struct InsightsResponse: Codable, Equatable {
+    let stats: Stats
+    let streak: Int
+    let consistency: Int
+    let weekly: [WeeklyAverage]
+    let dayOfWeek: [DayOfWeekStat]
+    let bestWorst: BestWorstNights
+    let monthly: [MonthlyTrendPoint]
+
+    enum CodingKeys: String, CodingKey {
+        case stats
+        case streak
+        case consistency
+        case weekly
+        case dayOfWeek = "day_of_week"
+        case bestWorst = "best_worst"
+        case monthly
+    }
+}
+
 // MARK: - /api/series
 
 enum SeriesRange: String, CaseIterable, Identifiable {
