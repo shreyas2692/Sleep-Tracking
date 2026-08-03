@@ -96,6 +96,11 @@ struct RootTabView: View {
             #if DEBUG
             if usePreviewFixtures { return }
             #endif
+            // No-server mode: everything is on-device — no sign-in needed.
+            if store.isLocalMode {
+                await store.refresh()
+                return
+            }
             // First run with no saved credentials: show sign-in right away
             // instead of blocking on a (possibly cold-starting) server.
             // Small delay so the presentation isn't dropped while the tab
@@ -106,10 +111,12 @@ struct RootTabView: View {
                 showSetup = true
             }
             await store.refresh()
-            // Missing password or hard connection failure → setup sheet.
-            let needsSetup = !UserDefaults.standard.bool(forKey: Self.setupShownKey)
-                || !store.config.hasCredentials
-                || store.loadState.errorMessage != nil
+            // Missing password or hard connection failure → setup sheet
+            // (never while the user has chosen phone-only storage).
+            let needsSetup = !store.isLocalMode
+                && (!UserDefaults.standard.bool(forKey: Self.setupShownKey)
+                    || !store.config.hasCredentials
+                    || store.loadState.errorMessage != nil)
             if needsSetup {
                 showSetup = true
             } else {
@@ -119,6 +126,13 @@ struct RootTabView: View {
         .onChange(of: store.config) { _, newValue in
             if newValue.hasCredentials {
                 UserDefaults.standard.set(true, forKey: Self.setupShownKey)
+            }
+        }
+        .onChange(of: store.isLocalMode) { _, isLocal in
+            // Choosing phone-only storage completes setup.
+            if isLocal {
+                UserDefaults.standard.set(true, forKey: Self.setupShownKey)
+                showSetup = false
             }
         }
     }

@@ -58,6 +58,23 @@ check your role here before editing anything:
 
 ## Status
 
+- **GOAL (owner, 2026-08-03): SHIP TO BOTH APP STORES, full functionality.**
+  Store push build-out is DONE and integrated (this commit): (a) iOS — every
+  finding in `reports/ios-release-review.md` fixed: ingest-based HealthKit
+  sync (stage/source fidelity + suppression bug), privacy manifest + usage
+  strings + in-app policy link, Keychain + plain-http warnings, signing via
+  git-ignored `ios/Signing.xcconfig` (see `ios/RELEASE.md`), full offline
+  local mode (`LocalAnalytics.swift`, local-records.json), app icon actually
+  bundled now; 53 iOS tests green, Release build succeeds. (b) Android —
+  parity (insights tab, quality overlay, stage minibars, future-date guard),
+  Claude palette, conditional release signing, 14 tests green, unsigned AAB
+  builds; see `docs/android-deployment.md`. (c) Store kit under `docs/store/`
+  (privacy policy, both submission walkthroughs, screenshot gap list,
+  RELEASE_RUNBOOK.md). Owner steps outstanding: fill Signing.xcconfig (done
+  locally, git-ignored), ASC app record + upload, Play Console org account +
+  upload keystore, host privacy policy, redeploy Render from main (instance
+  is on stale pre-insights code), re-capture screenshots.
+  CI green as of 824c1cf (pytest + Docker smoke).
 - **LOGIN + INSIGHTS + AI SUMMARY INTEGRATED (2026-07-31 ~08:50)** — 403
   tests passing (`.venv/bin/python -m pytest tests`). Ready for adversarial
   review by Codex s030: (1) session-based `/login`/`/logout` with branded

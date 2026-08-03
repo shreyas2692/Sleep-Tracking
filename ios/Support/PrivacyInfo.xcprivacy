@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sleep Tracker privacy manifest.
+	     The app never tracks users and contains no third-party SDKs.
+	     Health (sleep) data is read from HealthKit with the user's
+	     permission and is only ever sent to the server the user
+	     configures themselves (or kept on device in no-server mode). -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeHealth</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- UserDefaults stores the server URL/username and UI state,
+			     accessed only by the app itself. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -4,6 +4,9 @@ struct SettingsView: View {
     @EnvironmentObject private var store: SleepStore
     @EnvironmentObject private var health: HealthKitService
 
+    private static let privacyPolicyURL =
+        URL(string: "https://github.com/shreyas2692/Sleep-Tracking/blob/main/PRIVACY.md")!
+
     enum TestState: Equatable {
         case idle
         case testing
@@ -19,6 +22,9 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if store.isLocalMode {
+                    localModeSection
+                }
                 serverSection
                 healthSection
                 aboutSection
@@ -35,7 +41,36 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: Local mode
+
+    private var localModeSection: some View {
+        Section {
+            HStack(spacing: 10) {
+                Image(systemName: "iphone")
+                    .foregroundStyle(Color.appAccent)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("On this iPhone")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.appInk)
+                    Text("Your nights are stored only on this phone. Connect a server below anytime to sync across devices.")
+                        .font(.caption)
+                        .foregroundStyle(Color.appInk2)
+                }
+            }
+            .padding(.vertical, 2)
+        } header: {
+            Text("Storage").microLabel()
+        }
+        .listRowBackground(Color.appSurface)
+    }
+
     // MARK: Server
+
+    private var isPlainHTTP: Bool {
+        serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .hasPrefix("http://")
+    }
 
     private var serverSection: some View {
         Section {
@@ -51,6 +86,17 @@ struct SettingsView: View {
             SecureField("Password", text: $password, prompt: Text("SLEEP_PASSWORD from deploy"))
                 .textContentType(.password)
 
+            if isPlainHTTP {
+                Label {
+                    Text("Plain HTTP sends your password and sleep data unencrypted. Only use it with a server on your own home network — use https:// everywhere else.")
+                        .font(.caption)
+                        .foregroundStyle(Color.appInk2)
+                } icon: {
+                    Image(systemName: "lock.open")
+                        .foregroundStyle(Color.appAccent)
+                }
+            }
+
             Button("Fill cloud server (Render)") {
                 serverURL = ServerConfig.cloudDefaultURL
                 username = "sleep"
@@ -60,7 +106,7 @@ struct SettingsView: View {
                 testConnection()
             } label: {
                 HStack {
-                    Text("Test connection")
+                    Text(store.isLocalMode ? "Connect server" : "Test connection")
                     Spacer()
                     switch testState {
                     case .idle:
@@ -83,10 +129,19 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(Color.appInk2)
             }
+
+            if !store.isLocalMode {
+                Button("Use on this phone only (no server)") {
+                    store.enableLocalMode()
+                    testState = .idle
+                }
+            }
         } header: {
-            Text("Your Server").microLabel()
+            Text(store.isLocalMode ? "Server (Optional)" : "Your Server").microLabel()
         } footer: {
-            Text("This phone is a client. Your history lives on the web server (Render or Docker). First connect after idle can take ~60s on the free tier.")
+            Text(store.isLocalMode
+                ? "Optional: point the app at a Sleep Tracker server (Render or Docker) to keep a copy of your history off the phone and use the web app."
+                : "This phone is a client. Your history lives on the web server (Render or Docker). First connect after idle can take ~60s on the free tier.")
         }
         .listRowBackground(Color.appSurface)
     }
@@ -101,6 +156,7 @@ struct SettingsView: View {
         Task {
             do {
                 let stats = try await client.testConnection()
+                store.enableServerMode()
                 store.config = config
                 testState = .success(nights: stats.total)
                 Haptics.success()
@@ -134,20 +190,34 @@ struct SettingsView: View {
                 Button {
                     pushNights()
                 } label: {
-                    Label("Send \(newNightCount) new nights to server", systemImage: "arrow.up.circle")
+                    Label(
+                        store.isLocalMode
+                            ? "Import \(newNightCount) new nights"
+                            : "Send \(newNightCount) new nights to server",
+                        systemImage: store.isLocalMode ? "square.and.arrow.down" : "arrow.up.circle"
+                    )
                 }
                 .disabled(newNightCount == 0 || isPushing)
             }
         } header: {
             Text("Apple Health").microLabel()
         } footer: {
-            Text("Reads your sleep analysis from Health, clusters it into nights (the same rules as the web importer), and can send new nights to your server. Nothing is read without your permission.")
+            Text(store.isLocalMode
+                ? "Reads your sleep analysis from Health, clusters it into nights (the same rules as the web importer), and stores them on this phone. Nothing is read without your permission."
+                : "Reads your sleep analysis from Health, clusters it into nights (the same rules as the web importer), and can send new nights to your server. Nothing is read without your permission.")
         }
         .listRowBackground(Color.appSurface)
     }
 
+    /// Dates that already carry an Apple Health record. Manual or Fitbit
+    /// records on a date must NOT suppress a Health night — the identity is
+    /// (date, source), and the server / local store upsert by it.
+    private var appleHealthDates: Set<String> {
+        Set(store.records.filter { $0.source == "apple_health" }.map(\.date))
+    }
+
     private var newNightCount: Int {
-        let existing = Set(store.records.map(\.date))
+        let existing = appleHealthDates
         return health.nights.filter { !existing.contains($0.date) }.count
     }
 
@@ -161,7 +231,7 @@ struct SettingsView: View {
         switch health.state {
         case .idle:
             if !health.isAvailable {
-                statusText("Health data isn't available on this device — the server is the primary data path, so nothing is lost.")
+                statusText("Health data isn't available on this device — nothing is lost, your nights still live in the app.")
             }
         case .unavailable(let message), .failed(let message):
             statusText(message)
@@ -171,12 +241,12 @@ struct SettingsView: View {
             statusText("Reading sleep data from Health…")
         case .fetched(let count):
             statusText(count == 0
-                ? "No sleep data found in Health. On a simulator that's expected — the app runs fully from your server."
+                ? "No sleep data found in Health. On a simulator that's expected — you can still log nights by hand."
                 : "Found \(count) nights in Health.")
         case .pushing(let done, let total):
             statusText("Sending… \(done) of \(total)")
         case .pushed(let uploaded, let skipped):
-            statusText("Done — \(uploaded) uploaded, \(skipped) already on the server.")
+            statusText("Done — \(uploaded) imported, \(skipped) already up to date.")
         }
     }
 
@@ -187,7 +257,12 @@ struct SettingsView: View {
     }
 
     private func pushNights() {
-        let existing = Set(store.records.map(\.date))
+        if store.isLocalMode {
+            health.importLocally(into: store)
+            Haptics.success()
+            return
+        }
+        let existing = appleHealthDates
         Task {
             if await health.push(to: store.client, existingDates: existing) != nil {
                 await store.refresh()
@@ -217,6 +292,16 @@ struct SettingsView: View {
                 }
             }
             .padding(.vertical, 4)
+
+            Link(destination: Self.privacyPolicyURL) {
+                HStack {
+                    Label("Privacy Policy", systemImage: "hand.raised")
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption)
+                        .foregroundStyle(Color.appMuted)
+                }
+            }
         } header: {
             Text("About").microLabel()
         }

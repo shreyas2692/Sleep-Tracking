@@ -104,6 +104,26 @@ struct SetupView: View {
                 .font(.caption)
                 .foregroundStyle(Color.appMuted)
                 .frame(maxWidth: .infinity, alignment: .center)
+
+            Divider().background(Color.appBorder)
+
+            Button {
+                store.enableLocalMode()
+                Haptics.success()
+                dismiss()
+            } label: {
+                VStack(spacing: 3) {
+                    Text("Use without a server")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.appAccent)
+                    Text("Nights stay on this iPhone — log by hand or import from Apple Health. You can connect a server later in Settings.")
+                        .font(.caption)
+                        .foregroundStyle(Color.appInk2)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .disabled(isTesting)
         }
         .card()
     }
@@ -146,6 +166,10 @@ struct SetupView: View {
                     .buttonStyle(.bordered)
                 }
 
+                if serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased().hasPrefix("http://") {
+                    tip("Plain HTTP sends your password unencrypted — only use it with a server on your own home network.")
+                }
                 tip("Point this at any Sleep Tracker server — the password is its SLEEP_PASSWORD.")
                 tip("Free Render servers sleep when idle — first sign-in can take up to a minute.")
                 tip("After signing in, use Settings → Sync from Apple Health on an iPhone with Watch data.")
@@ -213,6 +237,7 @@ struct SetupView: View {
         Task {
             do {
                 let stats = try await client.testConnection()
+                store.enableServerMode()
                 store.config = config
                 successNights = stats.total
                 Haptics.success()

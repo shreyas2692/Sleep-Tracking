@@ -7,18 +7,26 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    # App Store / device signing — select your Team in Xcode (Signing & Capabilities).
+    # App Store / device signing — automatic style; the team id lives in
+    # ios/Signing.xcconfig (gitignored). One-time setup:
+    #   cp Signing.xcconfig.example Signing.xcconfig   # then fill in your Team ID
+    # Simulator builds need no team. Archives pass the xcconfig on the
+    # command line (see RELEASE.md / scripts/archive-for-appstore.sh), or
+    # select your Team once in Xcode → Signing & Capabilities.
     CODE_SIGN_STYLE: Automatic
-    # Fill once you see Team ID in Xcode → Settings → Accounts → Team, e.g. A1B2C3D4E5
-    # DEVELOPMENT_TEAM: A1B2C3D4E5
 targets:
   Sleep Tracker:
     type: application
     platform: iOS
+    # NOTE: XcodeGen has no top-level `resources:` target key — resources
+    # belong in `sources:` (a bare `resources:` key is silently ignored,
+    # which previously left the asset catalog OUT of the app bundle).
     sources:
       - Sources
-    resources:
       - path: Support/Assets.xcassets
+      # App privacy manifest (required-reason APIs + collected data types).
+      - path: Support/PrivacyInfo.xcprivacy
+        buildPhase: resources
     settings:
       base:
         # Reverse-DNS App ID (must match App Store Connect + developer.apple.com)

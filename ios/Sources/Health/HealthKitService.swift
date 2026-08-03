@@ -119,6 +119,14 @@ final class HealthKitService: ObservableObject {
         }
     }
 
+    /// Import clustered nights into the on-phone store (no-server mode).
+    /// Same `(date, source)` upsert identity as the server's ingest.
+    func importLocally(into store: SleepStore) {
+        guard !nights.isEmpty else { return }
+        let result = store.importHealthNights(nights)
+        state = .pushed(uploaded: result.imported + result.replaced, skipped: result.skipped)
+    }
+
     /// Map a clustered night to ingest JSON. Stages only when totals are
     /// close to the night length (server validates that relationship).
     static func ingestPayload(from night: ClusteredNight) -> APIClient.IngestNight {

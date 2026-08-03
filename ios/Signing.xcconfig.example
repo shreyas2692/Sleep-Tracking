@@ -1,0 +1,19 @@
+// Copy this file to Signing.xcconfig (same directory) and fill in your
+// Apple Developer Team ID — Xcode → Settings → Accounts → your team, or
+// https://developer.apple.com/account → Membership details.
+//
+// Signing.xcconfig is gitignored so the team id never lands in the repo.
+//
+//   cp Signing.xcconfig.example Signing.xcconfig
+//
+// Then archive with:
+//   xcodegen generate
+//   xcodebuild -project "Sleep Tracker.xcodeproj" -scheme "Sleep Tracker" \
+//     -destination 'generic/platform=iOS' -xcconfig Signing.xcconfig \
+//     -allowProvisioningUpdates archive
+// (or just run scripts/archive-for-appstore.sh, which picks this file up.)
+
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+
+// Optional: override the bundle id if the default is taken in your account.
+// PRODUCT_BUNDLE_IDENTIFIER = com.yourname.sleeptracker

@@ -136,6 +136,25 @@ final class APIDecodingTests: XCTestCase {
         XCTAssertEqual(Format.debtHeadline(0.0), "On balance")
     }
 
+    // MARK: /api/summary — {available, summary, generated_at, cached} and the
+    // no-key shape {available: false, reason} (extra keys must be ignored).
+
+    func testDecodeAISummaryAvailable() throws {
+        let json = #"""
+        {"available":true,"summary":"A calm week of sleep.","generated_at":"2026-07-31T08:00:00Z","cached":true}
+        """#
+        let summary = try decoder.decode(AISummary.self, from: Data(json.utf8))
+        XCTAssertTrue(summary.available)
+        XCTAssertEqual(summary.summary, "A calm week of sleep.")
+    }
+
+    func testDecodeAISummaryUnavailableHidesCard() throws {
+        let json = #"{"available":false,"reason":"no_api_key"}"#
+        let summary = try decoder.decode(AISummary.self, from: Data(json.utf8))
+        XCTAssertFalse(summary.available)
+        XCTAssertNil(summary.summary)
+    }
+
     // MARK: /api/insights — exact live capture (seeded 86-night DB, Sunday deficit)
 
     private let liveInsightsJSON = #"""
