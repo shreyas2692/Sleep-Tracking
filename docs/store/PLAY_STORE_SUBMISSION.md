@@ -200,7 +200,7 @@ it so the Data safety "Shared: No" answer is unambiguous.
    confirm `io.github.shreyas2692.sleeptracker`.
 3. **BLOCKER — signing:** upload keystore + Play App Signing enrollment
    (owner-only; commands in `docs/android-deployment.md`).
-4. **BLOCKER — privacy policy URL:** host `docs/store/PRIVACY_POLICY.md`
+4. **RESOLVED (2026-08-03) — privacy policy URL:** live at https://shreyas2692.github.io/Sleep-Tracking/store/PRIVACY_POLICY.html. Was: host `docs/store/PRIVACY_POLICY.md`
    (public, non-geofenced, not a PDF).
 5. **BLOCKER — Android screenshots + feature graphic:** none exist.
 6. **BLOCKER — demo server** live with review credentials (shared with iOS).

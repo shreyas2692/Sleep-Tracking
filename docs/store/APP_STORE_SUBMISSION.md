@@ -263,7 +263,7 @@ before submit. Icon `docs/app-store/assets/AppIcon-1024.png` is a valid
 1. **BLOCKER — signing:** `ios/project.yml` still has
    `CODE_SIGNING_ALLOWED: NO` and an empty `DEVELOPMENT_TEAM`; archive is
    impossible until the owner signs in (see `ios/APP_STORE_NEXT.md`).
-2. **BLOCKER — privacy policy URL:** not hosted yet. Host
+2. **RESOLVED (2026-08-03) — privacy policy URL:** live at https://shreyas2692.github.io/Sleep-Tracking/store/PRIVACY_POLICY.html (GitHub Pages from main:/docs). Was: not hosted yet. Host
    `docs/store/PRIVACY_POLICY.md` (GitHub Pages note inside it).
 3. **BLOCKER — in-app privacy link:** Settings has no privacy-policy link;
    Apple 5.1.1 requires one inside the app. (iOS lane change.)

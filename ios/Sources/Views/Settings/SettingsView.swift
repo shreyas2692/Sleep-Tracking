@@ -5,7 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var health: HealthKitService
 
     private static let privacyPolicyURL =
-        URL(string: "https://github.com/shreyas2692/Sleep-Tracking/blob/main/PRIVACY.md")!
+        URL(string: "https://shreyas2692.github.io/Sleep-Tracking/store/PRIVACY_POLICY.html")!
 
     enum TestState: Equatable {
         case idle
