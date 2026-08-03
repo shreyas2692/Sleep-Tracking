@@ -20,7 +20,7 @@ RUN addgroup --system app \
     && apt-get install -y --no-install-recommends gosu \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --chown=app:app app.py database.py ./
+COPY --chown=app:app app.py database.py analytics.py ai_summary.py ./
 COPY --chown=app:app importers ./importers
 COPY --chown=app:app static ./static
 COPY --chown=app:app templates ./templates
