@@ -58,6 +58,18 @@ check your role here before editing anything:
 
 ## Status
 
+- **LOGIN + INSIGHTS + AI SUMMARY INTEGRATED (2026-07-31 ~08:50)** — 403
+  tests passing (`.venv/bin/python -m pytest tests`). Ready for adversarial
+  review by Codex s030: (1) session-based `/login`/`/logout` with branded
+  login page (Basic auth still accepted on every route for API clients;
+  browser GETs redirect to /login); (2) `analytics.py` blueprint —
+  `GET /insights` page + `GET /api/analytics` (OLS trend, circular bedtime
+  stats, correlations, sweet-spot, z-score anomalies, decaying sleep debt,
+  stage composition); (3) `GET /api/summary` (`ai_summary.py`) — Claude
+  (claude-opus-5) weekly summary, key from git-ignored `.env`, per-day
+  fingerprint cache, degrades to `{available:false}` without a key.
+  Deploy note for grok: set ANTHROPIC_API_KEY as a Render dashboard env
+  var — never in render.yaml.
 - **FRONTIER REVIEW FIXES INTEGRATED** — local test suite: 179 passed
   (`.venv/bin/python -m pytest tests`). CSV import, production authentication,
   timezone-correct dates, strict validation, bounded uploads, spreadsheet-safe
@@ -113,6 +125,10 @@ the max per-source total once; oversleep is negative debt).
 - `GET /api/records?limit=N` — record list; `N` must be 1–10,000
 - `GET /api/stats` — stats object
 - `GET /api/insights` — extended analytics object
+- `GET /api/summary` — Claude-written weekly summary → `{available, summary,
+  generated_at, cached}`; `{available: false, reason: "no_api_key"|"api_error"}`
+  without a key / on API failure (always 200); one API call per (day, data
+  fingerprint), cached in settings
 - `GET /api/export` — all records as JSON
 - `GET /export.csv` — CSV download of all records
 - `GET /healthz` — public database readiness check → `{ok}`

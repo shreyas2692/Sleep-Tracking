@@ -1,5 +1,4 @@
 import csv
-import hashlib
 import hmac
 import io
 import json
@@ -37,7 +36,6 @@ from database import (
     get_monthly_trend,
     get_records,
     get_series,
-    get_setting,
     get_stats,
     get_streak,
     get_today,
@@ -46,7 +44,6 @@ from database import (
     update_record,
     upsert_wearable_records,
 )
-from ai_summary import generate_summary, summary_available
 from importers import parse_apple_health, parse_fitbit_takeout
 
 MAX_NOTES_LEN = 500
@@ -84,6 +81,12 @@ app.config.update(
     SESSION_COOKIE_SECURE=_env_truthy("SESSION_COOKIE_SECURE"),
     PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
+
+from analytics import analytics_bp  # noqa: E402  (needs app-independent import)
+from ai_summary import ai_bp  # noqa: E402
+
+app.register_blueprint(analytics_bp)
+app.register_blueprint(ai_bp)
 
 # Reachable without credentials: health probe, the login flow itself (a
 # stale session must still be able to log out), and static assets.
@@ -578,47 +581,6 @@ def api_insights():
             "monthly": get_monthly_trend(6),
         }
     )
-
-
-@app.route("/api/summary")
-def api_summary():
-    """Claude-written weekly narrative. Cached until data changes or a new day."""
-    if not summary_available():
-        return jsonify({"available": False, "summary": None})
-
-    stats = get_stats()
-    if stats["total"] < 7:
-        return jsonify({"available": True, "summary": None, "reason": "not_enough_data"})
-
-    digest = {
-        "today": str(get_today()),
-        "total_nights": stats["total"],
-        "avg_hours": stats["avg_hours"],
-        "avg_quality": stats["avg_quality"],
-        "current_streak": stats["current_streak"],
-        "sleep_debt": stats.get("sleep_debt"),
-        "consistency_0_100": get_consistency_score(),
-        "weekly_averages": get_weekly_averages(12),
-        "day_of_week": get_day_of_week_stats(),
-    }
-    digest_json = json.dumps(digest, sort_keys=True)
-    fingerprint = f"{str(get_today())}:{hashlib.sha256(digest_json.encode()).hexdigest()[:16]}"
-
-    if get_setting("ai_summary_fingerprint", "") == fingerprint:
-        cached = get_setting("ai_summary_text", "")
-        if cached:
-            return jsonify({"available": True, "summary": cached, "cached": True})
-
-    try:
-        summary = generate_summary(digest_json)
-    except Exception as exc:  # network / auth / rate limit
-        return jsonify({"available": True, "summary": None, "error": str(exc)}), 502
-    if not summary:
-        return jsonify({"available": True, "summary": None, "reason": "declined"}), 502
-
-    set_setting("ai_summary_text", summary)
-    set_setting("ai_summary_fingerprint", fingerprint)
-    return jsonify({"available": True, "summary": summary, "cached": False})
 
 
 @app.route("/api/export")

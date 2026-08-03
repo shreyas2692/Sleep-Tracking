@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sleep Insights — Sleep Tracker</title>
+<style>
+  :root {
+    --bg: #FAF9F5;
+    --ink: #141413;
+    --muted: #6E6B64;
+    --card-border: #E8E4DC;
+    --accent: #D97757;
+    --accent-hover: #C15F3C;
+    --slate: #6A7B8A;
+    --sage: #7D8B6F;
+    --gold: #C2A36B;
+    --plum: #8A6E7B;
+    --shadow: 0 1px 3px rgba(20, 20, 19, .06), 0 8px 24px rgba(20, 20, 19, .06);
+    --serif: Georgia, 'Times New Roman', serif;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-hover); }
+
+  .shell { max-width: 1040px; margin: 0 auto; padding: 0 24px 96px; }
+
+  .site-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 28px 0 8px;
+  }
+  .wordmark {
+    display: inline-flex; align-items: center; gap: 10px;
+    color: var(--ink); font-family: var(--serif); font-size: 18px;
+  }
+  .wordmark svg { display: block; }
+  .back-link { font-size: 14px; }
+
+  .page-title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(34px, 5vw, 46px); letter-spacing: -0.01em;
+    margin-top: 48px;
+  }
+  .page-sub { color: var(--muted); margin: 10px 0 40px; max-width: 560px; }
+
+  .stat-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px; margin-bottom: 24px;
+  }
+  .stat-tile {
+    background: #fff; border: 1px solid var(--card-border); border-radius: 16px;
+    box-shadow: var(--shadow); padding: 18px 20px 16px;
+  }
+  .stat-tile .stat-label {
+    color: var(--muted); font-size: 12px; text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .stat-tile .stat-value {
+    font-family: var(--serif); font-size: 30px; margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-tile .stat-note { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+
+  .grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    align-items: start;
+  }
+  .card {
+    background: #fff; border: 1px solid var(--card-border); border-radius: 16px;
+    box-shadow: var(--shadow); padding: 26px 28px 28px;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 {
+    font-family: var(--serif); font-weight: 400; font-size: 22px;
+    letter-spacing: -0.005em;
+  }
+  .card .card-sub { color: var(--muted); font-size: 13.5px; margin: 4px 0 18px; }
+  .card-body { min-height: 40px; }
+
+  #card-standout { margin-bottom: 24px; }
+
+  #card-ai-summary { margin-bottom: 24px; }
+  #card-ai-summary h2 {
+    display: flex; align-items: center; gap: 10px;
+  }
+  #card-ai-summary h2 svg { flex: none; }
+  .ai-summary-text { max-width: 640px; }
+  .ai-summary-text + .ai-summary-text { margin-top: 10px; }
+  .ai-summary-loading {
+    color: var(--muted); font-size: 14px;
+    animation: ai-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes ai-pulse {
+    0%, 100% { opacity: .45; }
+    50% { opacity: 1; }
+  }
+  .insight-list { list-style: none; }
+  .insight-list li {
+    position: relative; padding: 9px 0 9px 22px; font-size: 15px;
+    border-bottom: 1px solid #F2EFE9;
+  }
+  .insight-list li:last-child { border-bottom: none; }
+  .insight-list li::before {
+    content: ""; position: absolute; left: 2px; top: 17px;
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  }
+
+  .empty-state {
+    color: var(--muted); background: var(--bg);
+    border: 1px dashed var(--card-border); border-radius: 12px;
+    padding: 22px 20px; font-size: 14px; text-align: center;
+  }
+
+  svg.chart { display: block; width: 100%; height: auto; }
+  .chart-scroll { overflow-x: auto; }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px;
+    color: var(--muted); font-size: 13px;
+  }
+  .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch {
+    width: 11px; height: 11px; border-radius: 3px; display: inline-block;
+  }
+  .legend .swatch.hollow { background: #fff !important; border: 2px solid var(--slate); }
+
+  .drivers-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .drivers-table td { padding: 8px 6px; border-bottom: 1px solid #F2EFE9; }
+  .drivers-table tr:last-child td { border-bottom: none; }
+  .driver-label { width: 38%; }
+  .driver-meta { color: var(--muted); font-size: 12.5px; }
+  .badge {
+    display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px;
+    border: 1px solid var(--card-border); color: var(--muted); margin-left: 6px;
+    vertical-align: 1px; white-space: nowrap;
+  }
+  .ref-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .ref-chip {
+    border: 1px solid var(--card-border); border-radius: 12px;
+    padding: 8px 14px; font-size: 13px; color: var(--muted); background: var(--bg);
+  }
+  .ref-chip strong { color: var(--ink); font-weight: 600; }
+
+  .anomaly-list { list-style: none; font-size: 14px; }
+  .anomaly-list li {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 8px 0; border-bottom: 1px solid #F2EFE9;
+  }
+  .anomaly-list li:last-child { border-bottom: none; }
+  .anomaly-date {
+    font-variant-numeric: tabular-nums; color: var(--muted);
+    font-size: 13px; white-space: nowrap;
+  }
+  .fineprint { color: var(--muted); font-size: 12.5px; margin-top: 14px; }
+
+  footer.method-note {
+    color: var(--muted); font-size: 13px; margin-top: 48px; max-width: 720px;
+  }
+  footer.method-note p { margin-bottom: 8px; }
+
+  @media (max-width: 720px) {
+    .grid { grid-template-columns: 1fr; }
+    .card { padding: 20px 18px 22px; }
+    .shell { padding: 0 14px 72px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="site-header">
+    <a class="wordmark" href="/" aria-label="Sleep Tracker home">
+      <svg width="22" height="22" viewBox="0 0 24 24" role="img" aria-hidden="true">
+        <path d="M20.6 14.9A9 9 0 0 1 9.1 3.4a9 9 0 1 0 11.5 11.5Z"
+              fill="#D97757"/>
+      </svg>
+      <span>Sleep Tracker</span>
+    </a>
+    <a class="back-link" href="/">&larr; Back to dashboard</a>
+  </header>
+
+  <h1 class="page-title">Sleep Insights</h1>
+  <p class="page-sub">
+    Statistical patterns from your logged nights &mdash; trends, consistency,
+    and what actually moves your sleep quality. Everything here sharpens as
+    you log more nights.
+  </p>
+
+  <section id="headline" class="stat-row" aria-label="Headline statistics"></section>
+
+  <section class="card" id="card-ai-summary">
+    <h2>
+      <svg width="19" height="19" viewBox="0 0 24 24" role="img" aria-hidden="true">
+        <path d="M20.6 14.9A9 9 0 0 1 9.1 3.4a9 9 0 1 0 11.5 11.5Z"
+              fill="#D97757"/>
+        <path d="M18.6 1.6l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8Z"
+              fill="#C2A36B"/>
+      </svg>
+      This Week, in Plain Language
+    </h2>
+    <p class="card-sub">A short weekly read, written by Claude from the statistics on this page.</p>
+    <div class="card-body" id="ai-summary-body">
+      <p class="ai-summary-loading">Reading your week&hellip;</p>
+    </div>
+  </section>
+
+  <section class="card" id="card-standout">
+    <h2>What stands out</h2>
+    <p class="card-sub">Plain-language reads on your recent sleep, generated from the analyses below.</p>
+    <div class="card-body" id="standout-body"></div>
+  </section>
+
+  <div class="grid">
+    <section class="card wide" id="card-trend">
+      <h2>Sleep duration trend</h2>
+      <p class="card-sub">Nightly hours with a rolling 7-night average and its variability band.</p>
+      <div class="card-body" id="trend-body"></div>
+    </section>
+
+    <section class="card" id="card-clock">
+      <h2>Bedtime consistency</h2>
+      <p class="card-sub">Your bedtimes and wake times around a 24-hour clock. Tighter clusters mean a steadier rhythm.</p>
+      <div class="card-body" id="clock-body"></div>
+    </section>
+
+    <section class="card" id="card-sweet">
+      <h2>Your sweet spot</h2>
+      <p class="card-sub">Average quality rating by sleep duration &mdash; where do your best nights live?</p>
+      <div class="card-body" id="sweet-body"></div>
+    </section>
+
+    <section class="card wide" id="card-stages">
+      <h2>Sleep stages</h2>
+      <p class="card-sub">Stage composition per night from wearable data, with approximate adult reference ranges.</p>
+      <div class="card-body" id="stages-body"></div>
+    </section>
+
+    <section class="card wide" id="card-debt">
+      <h2>Sleep debt</h2>
+      <p class="card-sub">Cumulative shortfall vs your sleep goal. Recent nights weigh more than old ones (debt decays ~10% a day).</p>
+      <div class="card-body" id="debt-body"></div>
+    </section>
+
+    <section class="card" id="card-drivers">
+      <h2>What moves your quality</h2>
+      <p class="card-sub">Correlation between your quality ratings and each factor. Correlation is not causation.</p>
+      <div class="card-body" id="drivers-body"></div>
+    </section>
+
+    <section class="card" id="card-anomalies">
+      <h2>Unusual nights</h2>
+      <p class="card-sub">Nights that broke your own pattern (beyond 2.5 standard deviations of your rolling baseline).</p>
+      <div class="card-body" id="anomalies-body"></div>
+    </section>
+  </div>
+
+  <footer class="method-note">
+    <p>
+      Methods: least-squares trend with a t-based 95% confidence interval;
+      circular statistics for clock times; Pearson and Spearman correlation;
+      z-scores against a rolling 30-night baseline; exponentially decaying
+      sleep-debt model.
+    </p>
+    <p>
+      Stage reference ranges (deep ~13&ndash;23%, REM ~20&ndash;25% of time
+      asleep) are approximate adult values, and wearable staging is itself an
+      estimate &mdash; nothing on this page is medical advice.
+    </p>
+  </footer>
+</div>
+<script src="{{ url_for('static', filename='insights.js') }}"></script>
+</body>
+</html>
