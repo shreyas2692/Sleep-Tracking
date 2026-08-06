@@ -64,7 +64,7 @@ Product strategy notes: [`PRODUCT.md`](PRODUCT.md).
 ### iOS companion (`ios/`)
 - Tabs: Today · Trends · Nights · Settings
 - HealthKit read + optional push to your server
-- App Store plan, mockups, and 6.7" screenshots under [`docs/app-store/`](docs/app-store/)
+- Store submission kit (walkthroughs, runbook, policy) under [`docs/store/`](docs/store/); plan, mockups, and store screenshots under [`docs/app-store/`](docs/app-store/)
 
 ---
 
@@ -198,6 +198,9 @@ ios/                   SwiftUI companion (XcodeGen project.yml)
 docs/
   DEPLOY.md            Docker / Render ops
   app-store/           App Store plan, mockups, screenshots
+  store/               Submission kit: ASC + Play walkthroughs, release
+                       runbook, privacy policy, screenshot status
+  android-deployment.md  Android build/signing/tracks
 Dockerfile             Non-root Gunicorn image
 render.yaml            Render Blueprint
 .github/workflows/     CI (pytest on push/PR)
@@ -226,7 +229,7 @@ CI runs the same pytest suite on every push (see `.github/workflows/ci.yml`).
 - No mandatory cloud account; data lives in *your* SQLite file or HealthKit.
 - Optional server connection is user-controlled (self-host or Render).
 - Not a medical device — visualizes data your devices already collected.
-- Draft privacy copy for App Store: [`docs/app-store/PRIVACY_POLICY_DRAFT.md`](docs/app-store/PRIVACY_POLICY_DRAFT.md).
+- Privacy policy (hosted via GitHub Pages, linked in-app): [`docs/store/PRIVACY_POLICY.md`](docs/store/PRIVACY_POLICY.md) → https://shreyas2692.github.io/Sleep-Tracking/store/PRIVACY_POLICY.html
 
 ---
 

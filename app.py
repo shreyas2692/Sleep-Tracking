@@ -88,9 +88,11 @@ from ai_summary import ai_bp  # noqa: E402
 app.register_blueprint(analytics_bp)
 app.register_blueprint(ai_bp)
 
-# Reachable without credentials: health probe, the login flow itself (a
-# stale session must still be able to log out), and static assets.
-AUTH_EXEMPT_ENDPOINTS = frozenset({"healthz", "login", "logout", "static"})
+# Reachable without credentials: health probe, crawler policy, the login flow
+# itself (a stale session must still be able to log out), and static assets.
+AUTH_EXEMPT_ENDPOINTS = frozenset(
+    {"healthz", "robots_txt", "login", "logout", "static"}
+)
 
 
 def _is_ajax():
@@ -305,6 +307,12 @@ def healthz():
     except Exception:
         return jsonify(ok=False), 503
     return jsonify(ok=True)
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    """Keep private sleep dashboards out of search indexes."""
+    return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
 
 @app.route("/login", methods=["GET", "POST"])

@@ -374,6 +374,14 @@ def test_healthz_is_public_when_auth_enabled(client, monkeypatch):
     assert client.get("/").status_code == 401
 
 
+def test_robots_txt_is_public_and_disallows_indexing(client, monkeypatch):
+    monkeypatch.setenv("SLEEP_PASSWORD", "secret")
+    resp = client.get("/robots.txt")
+    assert resp.status_code == 200
+    assert resp.mimetype == "text/plain"
+    assert resp.get_data(as_text=True) == "User-agent: *\nDisallow: /\n"
+
+
 def test_basic_auth_protects_private_routes(client, monkeypatch):
     monkeypatch.setenv("SLEEP_USERNAME", "owner")
     monkeypatch.setenv("SLEEP_PASSWORD", "secret")

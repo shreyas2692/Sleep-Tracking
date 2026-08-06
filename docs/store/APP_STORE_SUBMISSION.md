@@ -252,32 +252,32 @@ server.
 
 ## 8. Screenshots & icon
 
-See `docs/store/SCREENSHOTS.md`. Summary: five 1290×2796 captures exist but
-are stale (pre-date the sign-in screen and the Trends Insights/AI-summary
-section) and shot 04 is a design mock, which Apple prohibits — re-capture
-before submit. Icon `docs/app-store/assets/AppIcon-1024.png` is a valid
-1024×1024 PNG, no alpha: ready.
+See `docs/store/SCREENSHOTS.md`. Status 2026-08-06: **ready** — all five
+shots re-captured 2026-08-04 from the live app at 1320×2868 (the required
+6.9" slot size), including a real capture for shot 04 (previously a design
+mock). Upload set: `docs/app-store/screenshots/`. Icon
+`docs/app-store/assets/AppIcon-1024.png` is a valid 1024×1024 PNG, no
+alpha: ready.
 
-## 9. Submission blockers (honest list)
+## 9. Submission blockers (honest list — updated 2026-08-06)
 
-1. **BLOCKER — signing:** `ios/project.yml` still has
-   `CODE_SIGNING_ALLOWED: NO` and an empty `DEVELOPMENT_TEAM`; archive is
-   impossible until the owner signs in (see `ios/APP_STORE_NEXT.md`).
-2. **RESOLVED (2026-08-03) — privacy policy URL:** live at https://shreyas2692.github.io/Sleep-Tracking/store/PRIVACY_POLICY.html (GitHub Pages from main:/docs). Was: not hosted yet. Host
-   `docs/store/PRIVACY_POLICY.md` (GitHub Pages note inside it).
-3. **BLOCKER — in-app privacy link:** Settings has no privacy-policy link;
-   Apple 5.1.1 requires one inside the app. (iOS lane change.)
-4. **BLOCKER — privacy manifest:** no `PrivacyInfo.xcprivacy` in `ios/`;
-   required for UserDefaults use (required-reason API, category `CA92.1`).
-   (iOS lane change.)
-5. **BLOCKER — review path:** either implement the HealthKit-only offline
-   mode the old plan promised, or (faster) submit with the demo-server story
-   in §6 and copy that never promises offline use. §6/§7 above are written
-   for the second path.
-6. High — `NSLocalNetworkUsageDescription` missing from Info.plist while ATS
-   local networking is enabled; add the purpose string or drop the ATS
-   exception from release builds. (iOS lane change.)
+1. **BLOCKER (owner) — signing:** needs the owner's Apple team in the
+   git-ignored `Signing.xcconfig` and an archive/upload from Xcode
+   (`ios/RELEASE.md` is the click-path).
+2. **RESOLVED (2026-08-03) — privacy policy URL:** live at
+   https://shreyas2692.github.io/Sleep-Tracking/store/PRIVACY_POLICY.html
+   (GitHub Pages from main:/docs) and linked from the app's Settings.
+3. **RESOLVED (2026-08-03) — in-app privacy link:** Settings → About links
+   the hosted policy (`SettingsView.swift`), satisfying Apple 5.1.1.
+4. **RESOLVED (2026-08-03) — privacy manifest:** `ios/Support/
+   PrivacyInfo.xcprivacy` ships (UserDefaults reason `CA92.1`; declares
+   Health data and — conservatively — Other User Content for night notes).
+5. **RESOLVED (2026-08-03) — review path:** offline local mode shipped
+   (`LocalAnalytics`); the app works without a server. Keep the §6
+   demo-server notes anyway — they make review smoother.
+6. **RESOLVED (2026-08-03) — LAN purpose string:**
+   `NSLocalNetworkUsageDescription` is in Info.plist.
 7. Decision — keep or remove the developer-run default server URL; it
    determines the §3 label ("collected, not linked" vs "not collected").
-8. Demo server with temporary password and seeded data must be live before
-   pressing Submit.
+8. **BLOCKER (owner) — demo server:** temporary review password and 60–90
+   seeded nights must be live before pressing Submit.

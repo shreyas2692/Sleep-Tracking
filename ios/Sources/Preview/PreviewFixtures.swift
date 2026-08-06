@@ -12,54 +12,66 @@ enum PreviewFixtures {
     static let stagesGreat = SleepStages(deep: 120, rem: 130, light: 190, awake: 30)
     static let stagesOk = SleepStages(deep: 70, rem: 80, light: 220, awake: 55)
 
+    /// ~5 weeks of nights ending yesterday. Deterministic weekday rhythm —
+    /// weekend lie-ins, short Sundays, two rough nights, a few manual logs —
+    /// so screenshots always show realistic, coherent history relative to
+    /// whenever they are captured.
     static var records: [SleepRecord] {
-        [
-            SleepRecord(
-                id: 9, date: "2026-07-31", bedtime: "23:12", wake: "07:04",
-                quality: 4, notes: "Imported from Apple Health",
-                hours: 7.87, source: "apple_health", stages: stagesGood, efficiency: nil
-            ),
-            SleepRecord(
-                id: 8, date: "2026-07-30", bedtime: "22:48", wake: "06:51",
-                quality: 5, notes: "Imported from Apple Health",
-                hours: 8.05, source: "apple_health", stages: stagesGreat, efficiency: nil
-            ),
-            SleepRecord(
-                id: 7, date: "2026-07-29", bedtime: "00:10", wake: "07:22",
-                quality: 3, notes: "Late start",
-                hours: 7.2, source: "manual", stages: nil, efficiency: nil
-            ),
-            SleepRecord(
-                id: 6, date: "2026-07-28", bedtime: "23:05", wake: "06:40",
-                quality: 4, notes: "Imported from Apple Health",
-                hours: 7.58, source: "apple_health", stages: stagesOk, efficiency: nil
-            ),
-            SleepRecord(
-                id: 5, date: "2026-07-27", bedtime: "22:30", wake: "05:55",
-                quality: 3, notes: "Imported from Apple Health",
-                hours: 7.42, source: "apple_health", stages: stagesOk, efficiency: nil
-            ),
-            SleepRecord(
-                id: 4, date: "2026-07-26", bedtime: "23:40", wake: "08:10",
-                quality: 5, notes: "Imported from Apple Health",
-                hours: 8.5, source: "apple_health", stages: stagesGreat, efficiency: nil
-            ),
-            SleepRecord(
-                id: 3, date: "2026-07-25", bedtime: "23:00", wake: "07:00",
-                quality: 4, notes: "",
-                hours: 8.0, source: "apple_health", stages: stagesGood, efficiency: nil
-            ),
-            SleepRecord(
-                id: 2, date: "2026-07-24", bedtime: "22:50", wake: "06:45",
-                quality: 4, notes: "",
-                hours: 7.92, source: "apple_health", stages: stagesGood, efficiency: nil
-            ),
-            SleepRecord(
-                id: 1, date: "2026-07-23", bedtime: "23:30", wake: "07:15",
-                quality: 4, notes: "",
-                hours: 7.75, source: "apple_health", stages: stagesOk, efficiency: nil
-            ),
-        ]
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let count = 36
+        var out: [SleepRecord] = []
+        for i in 0..<count {
+            let day = cal.date(byAdding: .day, value: -(i + 1), to: today)!
+            let date = DateUtil.string(from: day)
+            let weekday = cal.component(.weekday, from: day) // 1 = Sunday
+            let j = Double((i * 17 + weekday * 5) % 10) / 10.0 // 0.0…0.9 jitter
+
+            // Hours: weekday ~7.3–8.0, Fri/Sat ~7.9–8.6, Sunday short.
+            var hours: Double
+            switch weekday {
+            case 1: hours = 6.5 + j * 0.5 // Sunday deficit
+            case 6, 7: hours = 7.9 + j * 0.7 // weekend lie-in
+            default: hours = 7.3 + j * 0.7
+            }
+            if i == 0 { hours = 7.87 } // hero night for Today + night detail
+            if i == 9 { hours = 5.9 } // one rough night
+            if i == 23 { hours = 6.2 } // and another
+            hours = (hours * 100).rounded() / 100
+
+            // Bedtime later on weekends; wake = bedtime + asleep + awake.
+            let bedMinutes = (weekday == 6 || weekday == 7 ? 23 * 60 + 20 : 22 * 60 + 40) + Int(j * 40)
+            let awake = 24 + Int(j * 30) + (hours < 6.5 ? 22 : 0)
+            let wakeMinutes = bedMinutes + Int(hours * 60) + awake
+            func clock(_ m: Int) -> String { String(format: "%02d:%02d", (m / 60) % 24, m % 60) }
+
+            // Every sixth night is a manual log without stages.
+            let manual = i % 6 == 4
+            var stages: SleepStages?
+            if !manual {
+                let asleep = Int(hours * 60)
+                let deep = Int(Double(asleep) * (0.19 + j * 0.04))
+                let rem = Int(Double(asleep) * (0.22 + j * 0.05))
+                stages = SleepStages(deep: deep, rem: rem, light: asleep - deep - rem, awake: awake)
+            }
+
+            let quality = hours >= 8.1 ? 5 : hours >= 7.4 ? 4 : hours >= 6.6 ? 3 : 2
+            let notes: String
+            if manual {
+                notes = ["Late start", "", "Travel day", ""][i % 4]
+            } else {
+                notes = i % 5 == 0 ? "Imported from Apple Health" : ""
+            }
+
+            out.append(
+                SleepRecord(
+                    id: count - i, date: date, bedtime: clock(bedMinutes), wake: clock(wakeMinutes),
+                    quality: quality, notes: notes, hours: hours,
+                    source: manual ? "manual" : "apple_health", stages: stages, efficiency: nil
+                )
+            )
+        }
+        return out
     }
 
     static var sleepDebt: SleepDebt {
@@ -75,45 +87,60 @@ enum PreviewFixtures {
 
     static var stats: Stats {
         let cal = Calendar.current
-        let today = Date()
+        let today = cal.startOfDay(for: Date())
+        let recs = records
+        let byDate = Dictionary(uniqueKeysWithValues: recs.map { ($0.date, $0) })
         let series: [StatsSeriesDay] = (0..<30).map { offset in
             let d = cal.date(byAdding: .day, value: offset - 29, to: today)!
             let key = DateUtil.string(from: d)
-            if let rec = records.first(where: { $0.date == key }) {
-                return StatsSeriesDay(date: key, hours: rec.hours, quality: Double(rec.quality))
+            guard let rec = byDate[key] else {
+                return StatsSeriesDay(date: key, hours: nil, quality: nil)
             }
-            // sparse early month like the live screenshot
-            if offset >= 22 {
-                return StatsSeriesDay(date: key, hours: 7.5 + Double(offset % 3) * 0.2, quality: 4)
-            }
-            return StatsSeriesDay(date: key, hours: nil, quality: nil)
+            return StatsSeriesDay(date: key, hours: rec.hours, quality: Double(rec.quality))
         }
+        let avg = recs.map(\.hours).reduce(0, +) / Double(recs.count)
+        let avgQ = Double(recs.map(\.quality).reduce(0, +)) / Double(recs.count)
         return Stats(
-            total: 9,
-            avgHours: 7.8,
-            avgQuality: 4.4,
-            currentStreak: 3,
-            bestStreak: 3,
+            total: recs.count,
+            avgHours: (avg * 10).rounded() / 10,
+            avgQuality: (avgQ * 10).rounded() / 10,
+            currentStreak: recs.count,
+            bestStreak: recs.count,
             series: series,
             sleepDebt: sleepDebt
         )
     }
 
     static var series30: SeriesResponse {
-        let nights: [SeriesNight] = records.map {
-            SeriesNight(
-                date: $0.date,
-                hours: $0.hours,
-                quality: $0.quality,
-                stages: $0.stages,
-                source: $0.source
-            )
-        }.sorted { $0.date < $1.date }
+        let cal = Calendar.current
+        let start = cal.date(byAdding: .day, value: -30, to: cal.startOfDay(for: Date()))!
+        let startKey = DateUtil.string(from: start)
+        let nights: [SeriesNight] = records
+            .filter { $0.date >= startKey }
+            .map {
+                SeriesNight(
+                    date: $0.date,
+                    hours: $0.hours,
+                    quality: $0.quality,
+                    stages: $0.stages,
+                    source: $0.source
+                )
+            }
+            .sorted { $0.date < $1.date }
         return SeriesResponse(
             range: "30d",
             nights: nights,
-            start: nights.first?.date ?? "2026-07-02",
-            end: nights.last?.date ?? "2026-07-31"
+            start: nights.first?.date ?? startKey,
+            end: nights.last?.date ?? startKey
+        )
+    }
+
+    /// Weekly narrative for the Trends AI-summary card (a server-side
+    /// feature; fixture text mirrors the tone of `ai_summary.py` output).
+    static var aiSummary: AISummary {
+        AISummary(
+            available: true,
+            summary: "A steady week — you averaged 7h 41m, about 20 minutes more than the week before, and deep sleep held near two hours a night. Sundays are still your shortest nights; an earlier wind-down tonight would start the week ahead of your sleep debt instead of behind it."
         )
     }
 
@@ -182,9 +209,13 @@ enum PreviewFixtures {
 // MARK: - Store seeders
 
 extension SleepStore {
-    /// Populated store for canvas previews (no network).
+    /// Populated store for canvas previews (no network). Screenshot
+    /// tooling: `-localMode` presents the phone-only storage state instead
+    /// of a configured server (the AI summary is server-only, so it is
+    /// omitted there).
     static var previewPopulated: SleepStore {
         let store = SleepStore()
+        let localMode = ProcessInfo.processInfo.arguments.contains("-localMode")
         store.applyPreviewFixtures(
             records: PreviewFixtures.records,
             stats: PreviewFixtures.stats,
@@ -193,7 +224,9 @@ extension SleepStore {
                 .y1: PreviewFixtures.series1y,
             ],
             loadState: .loaded,
-            insights: PreviewFixtures.insights
+            insights: PreviewFixtures.insights,
+            aiSummary: localMode ? nil : PreviewFixtures.aiSummary,
+            mode: localMode ? .local : .server
         )
         return store
     }

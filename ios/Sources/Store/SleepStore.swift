@@ -544,7 +544,9 @@ final class SleepStore: ObservableObject {
         stats: Stats?,
         seriesByRange: [SeriesRange: SeriesResponse],
         loadState: LoadState,
-        insights: InsightsResponse? = nil
+        insights: InsightsResponse? = nil,
+        aiSummary: AISummary? = nil,
+        mode: Mode? = nil
     ) {
         self.records = records
         self.stats = stats
@@ -552,6 +554,8 @@ final class SleepStore: ObservableObject {
         self.series30 = seriesByRange[.d30]
         self.loadState = loadState
         self.insights = insights
+        self.aiSummary = aiSummary
+        if let mode { self.mode = mode }
         self.hasCachedData = !records.isEmpty || stats != nil
     }
     #endif

@@ -38,8 +38,6 @@
 	</dict>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Sleep Tracker reads your sleep analysis data from Apple Health so it can show your nights here and, if you choose, sync them to your self-hosted server. Your data never leaves your devices otherwise.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>If you choose to save nights to Apple Health, Sleep Tracker writes only the sleep data you logged in the app. Nothing is written without your permission.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Sleep Tracker connects to the self-hosted Sleep Tracker server you configure, which may run on your own home network (for example a Docker container on your computer).</string>
 	<!-- HTTPS only to the user's optional server; no custom crypto. -->
@@ -47,4 +45,3 @@
 	<false/>
 </dict>
 </plist>
-

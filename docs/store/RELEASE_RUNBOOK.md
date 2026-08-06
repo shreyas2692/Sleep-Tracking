@@ -133,16 +133,32 @@ Android (per `docs/android-deployment.md`):
 
 ---
 
-## Blocker snapshot (2026-08-03)
+## Blocker snapshot (2026-08-06)
+
+Resolved since the 2026-08-03 audit:
+
+- ~~Privacy policy not hosted~~ — **live** at
+  https://shreyas2692.github.io/Sleep-Tracking/store/PRIVACY_POLICY.html
+  (GitHub Pages), wired into the app (`SettingsView.swift`) and the
+  submission docs (commit `58bf904`).
+- ~~No `PrivacyInfo.xcprivacy` / in-app policy link / LAN purpose string~~ —
+  all three shipped (commit `ff7f7a5`); the privacy manifest now also
+  declares Other User Content (night notes) conservatively.
+- ~~HealthKit-offline mode absent~~ — offline local mode with
+  `LocalAnalytics` shipped; the app works with no server, and the
+  demo-server review story remains as belt-and-suspenders.
+- ~~All 5 iOS screenshots stale; shot 04 a mock~~ — re-captured 2026-08-04
+  from the live app at 1320×2868 (`docs/store/SCREENSHOTS.md`).
+- ~~No feature graphic~~ — `android/screenshots/feature-graphic.png`
+  (1024×500) ready.
+
+Still open:
 
 | # | Blocker | Store | Lane |
 |---|---|---|---|
-| 1 | Privacy policy not hosted | Both | docs + **[OWNER]** hosting |
-| 2 | iOS signing disabled / no team | Apple | iOS + **[OWNER]** |
-| 3 | No `PrivacyInfo.xcprivacy`, no in-app policy link, missing LAN purpose string | Apple | iOS |
-| 4 | HealthKit-offline mode absent → demo-server review story required | Apple | iOS / docs (kit §6 ready) |
-| 5 | All 5 store screenshots stale; shot 04 is a mock | Apple | assets |
-| 6 | Play account (Organization, verification) not confirmed | Play | **[OWNER]** |
-| 7 | No upload keystore / Play App Signing | Play | **[OWNER]** |
-| 8 | Zero Android screenshots, no feature graphic | Play | assets |
-| 9 | Demo server not yet deployed/seeded | Both | backend + **[OWNER]** |
+| 1 | iOS signing: owner team + `Signing.xcconfig`, archive & upload (`ios/RELEASE.md`) | Apple | **[OWNER]** |
+| 2 | ASC app record + listing not created; nothing submitted yet | Apple | **[OWNER]** |
+| 3 | Play account (Organization, verification) not confirmed | Play | **[OWNER]** |
+| 4 | No upload keystore / Play App Signing | Play | **[OWNER]** |
+| 5 | Android phone screenshots missing (placeholders in `android/screenshots/` are empty files) | Play | assets |
+| 6 | Demo server not yet seeded with review data + temp password | Both | backend + **[OWNER]** |

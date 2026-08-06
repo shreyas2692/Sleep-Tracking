@@ -1,12 +1,23 @@
 # Screenshot Plan — both stores
 
-Status audited 2026-08-03. Verdict up front: **every existing store capture
-is stale** (all pre-date the first-run sign-in screen and the Trends
-Insights/AI-summary section, both added later on Jul 31), shot 04 is a
-design mock that Apple prohibits, and **zero Play assets exist**. The
-capture pipeline already exists
-(`docs/app-store/scripts/capture-store-screenshots.sh`), so this is hours,
-not days.
+Status updated 2026-08-06. **iOS is done:** all five shots were re-captured
+2026-08-04 from the live app (preview fixtures, iPhone 16 Pro Max class) at
+**1320×2868** — the exact 6.9" ASC slot size — including a real capture for
+shot 04, which was previously a prohibited design mock. The upload set lives
+in `docs/app-store/screenshots/` (mirrored as `ios/screenshots/store-*.png`).
+
+**Android still has a gap:** the 1024×500 feature graphic exists
+(`android/screenshots/feature-graphic.png`), but the five phone screenshots
+in that folder are **empty placeholder files** — the emulator captures never
+ran. That is the remaining asset work (§3–4).
+
+<details>
+<summary>Original audit (2026-08-03) — kept for history</summary>
+
+Verdict at the time: every existing store capture was stale (pre-dating the
+first-run sign-in screen and the Trends Insights/AI-summary section), shot
+04 was a design mock that Apple prohibits, and zero Play assets existed.
+</details>
 
 ---
 
@@ -17,13 +28,17 @@ not days.
 All 1290×2796 PNG (6.7-inch class), verified valid and distinct by
 `reports/ios-release-review.md` §Screenshot Check.
 
+All five re-captured 2026-08-04 at 1320×2868 (6.9" slot) from the live app
+with preview fixtures — coherent numbers across shots, clean 9:41 status
+bar, light mode.
+
 | File | Content | Verdict |
 |---|---|---|
-| `01-today.png` | Dashboard: stats, sleep debt, stage bars | Stale — recheck vs current UI |
-| `02-trends.png` | Trends: range control + chart | **Stale — must re-capture**: Trends now renders `InsightsSection` with the AI summary card (`ios/Sources/Views/Trends/InsightsSection.swift`); the capture pre-dates it |
-| `03-nights.png` | Nights list, provenance + stage strips | Stale — recheck vs current UI |
-| `04-night-detail.png` | Stage composition + quality math | **Must re-capture — it is a design mock** (`APP_STORE_PLAN.md` §4.7 admits this); App Store guideline 2.3.3 requires screenshots to show the actual app |
-| `05-settings.png` | Server + Apple Health + principles | **Stale — must re-capture**: Settings/first-run flow changed with `SetupView` (sign-in sheet) |
+| `01-today.png` | Dashboard: stats, sleep debt, 30-day bars | **Ready** |
+| `02-trends.png` | Trends: range control + chart + Insights/AI-summary section | **Ready** |
+| `03-nights.png` | Nights list, provenance + stage strips | **Ready** |
+| `04-night-detail.png` | Night detail sheet: stage composition over Nights list | **Ready** — real capture (was a design mock before 2026-08-04) |
+| `05-settings.png` | Server + Apple Health + principles | **Ready** |
 
 ### `ios/screenshots/` (dev captures + copies)
 
@@ -43,10 +58,13 @@ All 1290×2796 PNG (6.7-inch class), verified valid and distinct by
 `mockup.css`. Design references only — never upload HTML-mockup exports as
 store screenshots.
 
-### Android
+### Android (`android/screenshots/`)
 
-**Nothing.** No Android screenshots, no feature graphic, no 512×512 icon
-export.
+- `feature-graphic.png` — **Ready:** 1024×500 (wordmark + crescent motif,
+  brand palette).
+- `01-today.png` … `05-log-night.png` — **empty placeholder files (0 bytes);
+  the real emulator captures are still TODO.**
+- No 512×512 icon export yet (downscale `AppIcon-1024.png` when needed).
 
 ---
 
@@ -58,7 +76,7 @@ iPad set for an untested layout.
 
 | ASC slot | Size | Need | Have |
 |---|---|---|---|
-| 6.9" (required) | 1320×2868 — ASC also accepts 1290×2796 in this slot | 3–5 shots (up to 10) | 5 stale captures at 1290×2796; size OK, content stale |
+| 6.9" (required) | 1320×2868 — ASC also accepts 1290×2796 in this slot | 3–5 shots (up to 10) | **5 current captures at exactly 1320×2868 — ready to upload** |
 | 6.5"/6.7" (optional; auto-scaled from 6.9" if omitted) | 1284×2778 / 1290×2796 | 0 (let ASC scale) | n/a |
 | iPad 13" | — | 0 (iPhone-only) | n/a |
 | App icon | 1024×1024, no alpha | 1 | **Ready:** `docs/app-store/assets/AppIcon-1024.png` (verified valid, no alpha) |
@@ -71,19 +89,20 @@ insists on 1320×2868, capture on an iPhone 16 Pro Max simulator instead
 
 | Asset | Spec | Have |
 |---|---|---|
-| Phone screenshots | 2–8, PNG/JPG, each side 320–3840 px; for store-promotion eligibility ≥4 at ≥1080 px in 9:16 | **None** — and they must show the Android app's actual Material UI, not iOS |
-| Feature graphic | 1024×500 PNG/JPG, required for listing promotion | **None** — design one from the mockup palette (page `#FAF9F5`, terracotta `#D97757`, ink `#141413`): wordmark + one calm chart motif, no screenshots-in-frame clutter |
+| Phone screenshots | 2–8, PNG/JPG, each side 320–3840 px; for store-promotion eligibility ≥4 at ≥1080 px in 9:16 | **None yet** (placeholders in `android/screenshots/` are empty) — must show the Android app's actual Material UI, not iOS |
+| Feature graphic | 1024×500 PNG/JPG, required for listing promotion | **Ready:** `android/screenshots/feature-graphic.png` |
 | App icon | 512×512 PNG ≤1 MB | Downscale `AppIcon-1024.png` |
 | Tablet shots | only if targeting tablets | Skip for v1 |
 
 Capture Android shots on a Pixel emulator (e.g. Pixel 8, 1080×2400 —
 within Play limits) via Android Studio or `adb exec-out screencap`.
 
-## 4. Re-capture shot list (the work)
+## 4. Re-capture shot list
 
-iOS — re-run `./docs/app-store/scripts/capture-store-screenshots.sh` after
-UI is final (uses `-previewFixtures`, `-initialTab`, `-initialRange 1y`,
-`-showNightDetail` launch args):
+**iOS: done 2026-08-04** with
+`./docs/app-store/scripts/capture-store-screenshots.sh` (uses
+`-previewFixtures`, `-initialTab`, `-initialRange 1y`, `-showNightDetail`
+launch args). Re-run only if the UI changes before submit:
 
 1. `01-today` — Dashboard (fixtures with realistic multi-month data)
 2. `02-trends` — Trends scrolled to show range selector **and the new

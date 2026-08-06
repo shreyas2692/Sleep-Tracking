@@ -16,6 +16,10 @@ __pycache__/
 graphify-out/
 ios/DerivedData/
 ios/*.xcodeproj
+*.xcuserstate
+
+# Local agent config/skills
+.claude/
 
 # OS
 .DS_Store
